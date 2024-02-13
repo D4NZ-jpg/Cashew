@@ -9,7 +9,6 @@ import 'package:budget/pages/homePage/homePageLineGraph.dart';
 import 'package:budget/pages/homePage/homePageNetWorth.dart';
 import 'package:budget/pages/homePage/homePageWalletSwitcher.dart';
 import 'package:budget/pages/pastBudgetsPage.dart';
-import 'package:budget/pages/premiumPage.dart';
 import 'package:budget/pages/transactionFilters.dart';
 import 'package:budget/pages/transactionsSearchPage.dart';
 import 'package:budget/pages/upcomingOverdueTransactionsPage.dart';
@@ -152,7 +151,6 @@ class _WalletDetailsPageState extends State<WalletDetailsPage>
     if (widget.initialSearchFilters != null) {
       searchFilters = widget.initialSearchFilters;
     } else if (widget.wallet == null) {
-      allSpendingHistoryDismissedPremium = false;
       searchFilters?.loadFilterString(
         appStateSettings["allSpendingSetFiltersString"],
         skipDateTimeRange: true,
@@ -2099,7 +2097,6 @@ class WalletDetailsLineGraph extends StatelessWidget {
   }
 }
 
-bool allSpendingHistoryDismissedPremium = false;
 
 class AllSpendingPastSpendingGraph extends StatefulWidget {
   const AllSpendingPastSpendingGraph({
@@ -2484,18 +2481,12 @@ class _AllSpendingPastSpendingGraphState
                           children: [
                             Container(
                               color: Theme.of(context).canvasColor,
-                              child: FadeOutAndLockFeature(
-                                hasInitiallyDismissed:
-                                    allSpendingHistoryDismissedPremium,
-                                actionAfter: () {
-                                  allSpendingHistoryDismissedPremium = true;
-                                },
                                 child: Stack(
-                                  children: [
-                                    Padding(
-                                      padding: const EdgeInsets.symmetric(
-                                          vertical: 7, horizontal: 0),
-                                      child: Padding(
+                                    children: [
+                                        Padding(
+                                            padding: const EdgeInsets.symmetric(
+                                            vertical: 7, horizontal: 0),
+                                        child: Padding(
                                         padding:
                                             const EdgeInsets.only(right: 5),
                                         child: ClipRRect(
@@ -2563,7 +2554,7 @@ class _AllSpendingPastSpendingGraphState
                                     ),
                                   ],
                                 ),
-                              ),
+
                             ),
                             Transform.translate(
                               offset: Offset(0, -1),

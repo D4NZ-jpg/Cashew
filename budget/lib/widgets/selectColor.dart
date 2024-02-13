@@ -1,7 +1,6 @@
 import 'package:budget/colors.dart';
 import 'package:budget/functions.dart';
 import 'package:budget/pages/addTransactionPage.dart';
-import 'package:budget/pages/premiumPage.dart';
 import 'package:budget/struct/settings.dart';
 import 'package:budget/widgets/button.dart';
 import 'package:budget/widgets/colorPicker.dart';
@@ -461,11 +460,7 @@ class _ColorIconCustomState extends State<ColorIconCustom> {
     );
     return Tooltip(
       message: "custom-color".tr(),
-      child: LockedFeature(
-        actionAfter: () async {
-          await openBottomSheet(context, colorPickerPopup);
-        },
-        child: Container(
+      child: Container(
           margin: widget.margin ??
               EdgeInsets.only(left: 8, right: 8, top: 8, bottom: 8),
           height: widget.size,
@@ -503,7 +498,6 @@ class _ColorIconCustomState extends State<ColorIconCustom> {
                   ? Icons.colorize_outlined
                   : Icons.colorize_rounded,
               color: Theme.of(context).colorScheme.secondary,
-            ),
           ),
         ),
       ),

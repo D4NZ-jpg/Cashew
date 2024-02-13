@@ -5,7 +5,6 @@ import 'package:budget/pages/addWalletPage.dart';
 import 'package:budget/pages/editBudgetLimitsPage.dart';
 import 'package:budget/pages/editBudgetPage.dart';
 import 'package:budget/pages/editHomePage.dart';
-import 'package:budget/pages/premiumPage.dart';
 import 'package:budget/pages/sharedBudgetSettings.dart';
 import 'package:budget/struct/currencyFunctions.dart';
 import 'package:budget/struct/databaseGlobal.dart';
@@ -361,9 +360,7 @@ class _AddBudgetPageState extends State<AddBudgetPage> {
     super.initState();
     Future.delayed(Duration.zero, () async {
       if (widget.budget == null) {
-        bool result = await premiumPopupBudgets(context);
-        if (result == true && widget.isAddedOnlyBudget != true) {
-          dynamic result = await openBottomSheet(
+            dynamic result = await openBottomSheet(
             context,
             fullSnap: false,
             SelectBudgetTypePopup(setBudgetType: setSelectedBudgetType),
@@ -385,8 +382,7 @@ class _AddBudgetPageState extends State<AddBudgetPage> {
             fullSnap: false,
             SelectBudgetIncomeTypePopup(setBudgetIncome: setSelectedIncome),
           );
-        }
-      }
+        } 
 
       allMembersOfAllBudgets = await database.getAllMembersOfBudgets();
       if (widget.isAddedOnlyBudget) {

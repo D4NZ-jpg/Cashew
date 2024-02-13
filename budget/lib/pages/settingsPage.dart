@@ -11,7 +11,6 @@ import 'package:budget/pages/editObjectivesPage.dart';
 import 'package:budget/pages/exchangeRatesPage.dart';
 import 'package:budget/pages/homePage/homePageNetWorth.dart';
 import 'package:budget/pages/objectivesListPage.dart';
-import 'package:budget/pages/premiumPage.dart';
 import 'package:budget/pages/transactionsListPage.dart';
 import 'package:budget/pages/upcomingOverdueTransactionsPage.dart';
 import 'package:budget/struct/currencyFunctions.dart';
@@ -108,12 +107,8 @@ class MoreActionsPageState extends State<MoreActionsPage>
         backButton: false,
         horizontalPadding: getHorizontalPaddingConstrained(context),
         listWidgets: [
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8.0),
-            child: PremiumBanner(),
-          ),
           MorePages()
-        ],
+        ]
       );
     });
   }
@@ -192,9 +187,7 @@ class MorePages extends StatelessWidget {
                 child: Padding(
                   padding: EdgeInsets.symmetric(vertical: 5, horizontal: 4),
                   child: SettingsContainer(
-                    onTap: () {
-                      openBottomSheet(context, RatingPopup(), fullSnap: true);
-                    },
+                    onTap: () {},
                     title: "feedback".tr(),
                     icon: appStateSettings["outlinedIcons"]
                         ? Icons.rate_review_outlined
