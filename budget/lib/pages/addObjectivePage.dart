@@ -562,7 +562,7 @@ class _AddObjectivePageState extends State<AddObjectivePage>
                         child: ButtonIcon(
                           onTap: () {
                             setState(() {
-                              isDifferenceOnlyLoan = true;
+                              isDifferenceOnlyLoan = !isDifferenceOnlyLoan;
                             });
                             determineBottomButton();
                           },
@@ -771,16 +771,17 @@ class _AddObjectivePageState extends State<AddObjectivePage>
             SliverToBoxAdapter(
               child: SizedBox(height: 10),
             ),
-            SliverToBoxAdapter(
-              child: Center(
-                child: SelectDateRange(
-                  initialStartDate: selectedStartDate,
-                  initialEndDate: selectedEndDate,
-                  onSelectedStartDate: setSelectedStartDate,
-                  onSelectedEndDate: setSelectedEndDate,
+            if (isDifferenceOnlyLoan != true)
+              SliverToBoxAdapter(
+                child: Center(
+                  child: SelectDateRange(
+                    initialStartDate: selectedStartDate,
+                    initialEndDate: selectedEndDate,
+                    onSelectedStartDate: setSelectedStartDate,
+                    onSelectedEndDate: setSelectedEndDate,
+                  ),
                 ),
               ),
-            ),
             SliverToBoxAdapter(child: SizedBox(height: 65)),
             // SliverToBoxAdapter(
             //   child: KeyboardHeightAreaAnimated(),
