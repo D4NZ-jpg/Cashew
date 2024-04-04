@@ -27,6 +27,7 @@ import 'listItem.dart';
 String getChangelogString() {
   return """
     < 5.2.8
+    Removed all paid features <3 (Danz)
     New edit selected transactions popup
     Edit title for all selected transactions
     All time date range in search transaction page
