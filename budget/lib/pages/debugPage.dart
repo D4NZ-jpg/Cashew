@@ -57,7 +57,7 @@ class DebugPage extends StatelessWidget {
             //       pagesNeedingRefresh: [0], updateGlobalState: false);
             // }
           },
-          initialValue: appStateSettings["showCumulativeSpending"],
+          initialValue: appStateSettings["showCumulativeSpending"] == true,
           icon: appStateSettings["outlinedIcons"]
               ? Icons.show_chart_outlined
               : Icons.show_chart_rounded,
@@ -70,7 +70,8 @@ class DebugPage extends StatelessWidget {
             updateSettings("removeZeroTransactionEntries", value,
                 pagesNeedingRefresh: [0], updateGlobalState: false);
           },
-          initialValue: appStateSettings["removeZeroTransactionEntries"],
+          initialValue:
+              appStateSettings["removeZeroTransactionEntries"] == true,
           icon: appStateSettings["outlinedIcons"]
               ? Icons.money_off_outlined
               : Icons.money_off_rounded,
@@ -86,7 +87,7 @@ class DebugPage extends StatelessWidget {
             //       pagesNeedingRefresh: [0], updateGlobalState: false);
             // }
           },
-          initialValue: appStateSettings["ignorePastAmountSpent"],
+          initialValue: appStateSettings["ignorePastAmountSpent"] == true,
           icon: appStateSettings["outlinedIcons"]
               ? Icons.add_chart_outlined
               : Icons.add_chart_rounded,
@@ -97,11 +98,41 @@ class DebugPage extends StatelessWidget {
             updateSettings("showPastSpendingTrajectory", value,
                 pagesNeedingRefresh: [0], updateGlobalState: false);
           },
-          initialValue: appStateSettings["showPastSpendingTrajectory"],
+          initialValue: appStateSettings["showPastSpendingTrajectory"] == true,
           icon: appStateSettings["outlinedIcons"]
               ? Icons.blur_circular_outlined
               : Icons.blur_circular_rounded,
         ),
+        SettingsContainerSwitch(
+          title: "Circular progress rotation offset for categories",
+          description:
+              "Try and align with what is displayed in the pie graph. Odd rotations with subcategories.",
+          onSwitched: (value) {
+            updateSettings("circularProgressRotation", value,
+                updateGlobalState: true);
+            // if (value == true) {
+            //   updateSettings("removeZeroTransactionEntries", false,
+            //       pagesNeedingRefresh: [0], updateGlobalState: false);
+            // }
+          },
+          initialValue: appStateSettings["circularProgressRotation"] == true,
+          icon: appStateSettings["outlinedIcons"]
+              ? Icons.rotate_90_degrees_cw_outlined
+              : Icons.rotate_90_degrees_cw_rounded,
+        ),
+        SettingsContainerSwitch(
+          title: "Large transaction entry".tr(),
+          description: "Show more information in a transaction entry".tr(),
+          onSwitched: (value) {
+            updateSettings("nonCompactTransactions", value,
+                updateGlobalState: true, pagesNeedingRefresh: [0, 1, 2, 3]);
+          },
+          initialValue: appStateSettings["nonCompactTransactions"] == true,
+          icon: appStateSettings["outlinedIcons"]
+              ? Icons.web_asset_outlined
+              : Icons.web_asset_rounded,
+        ),
+
         SettingsContainerSwitch(
           title: "battery-saver".tr(),
           description: "battery-saver-description".tr(),
@@ -109,7 +140,7 @@ class DebugPage extends StatelessWidget {
             updateSettings("batterySaver", value,
                 updateGlobalState: true, pagesNeedingRefresh: [0, 1, 2, 3]);
           },
-          initialValue: appStateSettings["batterySaver"],
+          initialValue: appStateSettings["batterySaver"] == true,
           icon: appStateSettings["outlinedIcons"]
               ? Icons.battery_charging_full_outlined
               : Icons.battery_charging_full_rounded,
@@ -121,7 +152,8 @@ class DebugPage extends StatelessWidget {
               updateSettings("massEditSelectedTransactions", value,
                   pagesNeedingRefresh: [0], updateGlobalState: false);
             },
-            initialValue: appStateSettings["massEditSelectedTransactions"],
+            initialValue:
+                appStateSettings["massEditSelectedTransactions"] == true,
             icon: Icons.edit,
           ),
         ),
@@ -133,7 +165,7 @@ class DebugPage extends StatelessWidget {
             },
             title: "Notification Transactions",
             description: "Still in testing, enables the settings option",
-            initialValue: appStateSettings["notificationScanningDebug"],
+            initialValue: appStateSettings["notificationScanningDebug"] == true,
             icon: appStateSettings["outlinedIcons"]
                 ? Icons.edit_notifications_outlined
                 : Icons.edit_notifications_rounded,
@@ -146,7 +178,7 @@ class DebugPage extends StatelessWidget {
           title: "Category Icon Tint",
           description:
               "Color category icons to follow color, material you must be enabled",
-          initialValue: appStateSettings["colorTintCategoryIcon"],
+          initialValue: appStateSettings["colorTintCategoryIcon"] == true,
           icon: appStateSettings["outlinedIcons"]
               ? Icons.category_outlined
               : Icons.category_rounded,
@@ -159,7 +191,7 @@ class DebugPage extends StatelessWidget {
             },
             title: "Enable Email Scanning",
             description: "Not verified by Google. Still in testing.",
-            initialValue: appStateSettings["emailScanning"],
+            initialValue: appStateSettings["emailScanning"] == true,
             icon: appStateSettings["outlinedIcons"]
                 ? Icons.mark_email_unread_outlined
                 : Icons.mark_email_unread_rounded,
@@ -173,7 +205,8 @@ class DebugPage extends StatelessWidget {
             },
             title: "Email Scanning Pull to Refresh",
             description: "May increase API usage",
-            initialValue: appStateSettings["emailScanningPullToRefresh"],
+            initialValue:
+                appStateSettings["emailScanningPullToRefresh"] == true,
             icon: appStateSettings["outlinedIcons"]
                 ? Icons.mark_email_unread_outlined
                 : Icons.mark_email_unread_rounded,
@@ -188,7 +221,7 @@ class DebugPage extends StatelessWidget {
             title: "Enable Shared Budgets",
             description:
                 "In testing, share budgets and transactions with other users.",
-            initialValue: appStateSettings["sharedBudgets"],
+            initialValue: appStateSettings["sharedBudgets"] == true,
             icon: appStateSettings["outlinedIcons"]
                 ? Icons.share_outlined
                 : Icons.share_rounded,
@@ -200,7 +233,7 @@ class DebugPage extends StatelessWidget {
             updateSettings("syncEveryChange", value,
                 pagesNeedingRefresh: [], updateGlobalState: false);
           },
-          initialValue: appStateSettings["syncEveryChange"],
+          initialValue: appStateSettings["syncEveryChange"] == true,
           title: "sync-every-change".tr(),
           descriptionWithValue: (value) {
             return value
@@ -223,8 +256,9 @@ class DebugPage extends StatelessWidget {
             }
             updateSettings("iOSEmulate", value,
                 pagesNeedingRefresh: [], updateGlobalState: true);
+            generateColors();
           },
-          initialValue: appStateSettings["iOSEmulate"],
+          initialValue: appStateSettings["iOSEmulate"] == true,
           icon: appStateSettings["outlinedIcons"]
               ? Icons.apple_outlined
               : Icons.apple_rounded,
@@ -256,22 +290,6 @@ class DebugPage extends StatelessWidget {
           },
         ),
         SettingsContainerSwitch(
-          title: "Native iOS Navigation",
-          description: "Enables native iOS like navigation",
-          onSwitched: (value) {
-            updateSettings("iOSNavigation", value,
-                pagesNeedingRefresh: [], updateGlobalState: true);
-            // if (value == true) {
-            //   updateSettings("removeZeroTransactionEntries", false,
-            //       pagesNeedingRefresh: [0], updateGlobalState: false);
-            // }
-          },
-          initialValue: appStateSettings["iOSNavigation"],
-          icon: appStateSettings["outlinedIcons"]
-              ? Icons.apple_outlined
-              : Icons.apple_rounded,
-        ),
-        SettingsContainerSwitch(
           onSwitched: (value) async {
             updateSettings("incognitoKeyboard", value,
                 updateGlobalState: false);
@@ -279,7 +297,7 @@ class DebugPage extends StatelessWidget {
           title: "Incognito Text Input",
           description:
               "Use the incognito keyboard for text input (if supported)",
-          initialValue: appStateSettings["incognitoKeyboard"],
+          initialValue: appStateSettings["incognitoKeyboard"] == true,
           icon: appStateSettings["outlinedIcons"]
               ? Icons.keyboard_outlined
               : Icons.keyboard_rounded,
@@ -293,7 +311,7 @@ class DebugPage extends StatelessWidget {
             //       pagesNeedingRefresh: [0], updateGlobalState: false);
             // }
           },
-          initialValue: appStateSettings["disableShadows"],
+          initialValue: appStateSettings["disableShadows"] == true,
           icon: Icons.dark_mode,
         ),
         SettingsContainerSwitch(

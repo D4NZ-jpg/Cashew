@@ -21,6 +21,7 @@ Future<T?> openPopup<T extends Object?>(
   String? subtitle,
   String? description,
   Widget? descriptionWidget,
+  Widget? beforeDescriptionWidget,
   String? onSubmitLabel,
   String? onCancelLabel,
   String? onExtraLabel,
@@ -131,6 +132,8 @@ Future<T?> openPopup<T extends Object?>(
                                     .onTertiaryContainer,
                               ),
                             ),
+                          if (beforeDescriptionWidget != null)
+                            beforeDescriptionWidget,
                           if (description != null)
                             Padding(
                               padding: const EdgeInsets.symmetric(
@@ -512,6 +515,39 @@ void discardChangesPopup(context,
       onCancel: () {
         Navigator.pop(context);
       },
+    );
+  }
+}
+
+class CodeBlock extends StatelessWidget {
+  const CodeBlock({required this.text, super.key});
+  final String text;
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.secondaryContainer,
+        borderRadius: BorderRadius.circular(5),
+      ),
+      padding: EdgeInsets.all(10),
+      child: TextFont(
+        text: "",
+        textAlign: TextAlign.center,
+        fontSize: 15,
+        softWrap: true,
+        richTextSpan: [
+          TextSpan(
+            text: text,
+            style: TextStyle(
+              fontSize: 15,
+              fontFamily: "monospace",
+              fontFamilyFallback: <String>["Courier"],
+              color: getColor(context, "black"),
+            ),
+          ),
+        ],
+        maxLines: 100,
+      ),
     );
   }
 }

@@ -380,8 +380,53 @@ class SearchFilters {
     outString += "searchQuery:-:" + searchQuery.toString() + ":-:";
     outString += "titleContains:-:" + titleContains.toString() + ":-:";
     outString += "noteContains:-:" + noteContains.toString() + ":-:";
-    print(outString);
+    //print(outString);
     return outString;
+  }
+}
+
+class HighlightStringInList extends TextEditingController {
+  final Pattern pattern;
+
+  HighlightStringInList({String? initialText})
+      : pattern = RegExp(r'\b[^,]+(?=|$)') {
+    this.text = initialText ?? '';
+  }
+
+  @override
+  TextSpan buildTextSpan({
+    required BuildContext context,
+    TextStyle? style,
+    required bool withComposing,
+  }) {
+    if (text.contains(", ") == false) return TextSpan(style: style, text: text);
+    List<InlineSpan> children = [];
+    text.splitMapJoin(
+      pattern,
+      onMatch: (Match match) {
+        children.add(
+          TextSpan(
+            text: match[0] ?? "",
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onPrimary,
+              backgroundColor: dynamicPastel(
+                context,
+                Theme.of(context).colorScheme.primary.withOpacity(0.5),
+                inverse: true,
+                amountDark: 0.1,
+                amountLight: 0.25,
+              ),
+            ),
+          ),
+        );
+        return match[0] ?? "";
+      },
+      onNonMatch: (String text) {
+        children.add(TextSpan(text: text, style: style));
+        return text;
+      },
+    );
+    return TextSpan(style: style, children: children);
   }
 }
 
@@ -404,10 +449,21 @@ class TransactionFiltersSelection extends StatefulWidget {
 class _TransactionFiltersSelectionState
     extends State<TransactionFiltersSelection> {
   late SearchFilters selectedFilters = widget.searchFilters;
+  late ScrollController titleContainsScrollController = ScrollController();
+  late TextEditingController titleContainsController = HighlightStringInList(
+    initialText: selectedFilters.titleContains,
+  );
 
   void setSearchFilters() {
     widget.setSearchFilters(selectedFilters);
     setState(() {});
+  }
+
+  @override
+  void dispose() {
+    titleContainsController.dispose();
+    titleContainsScrollController.dispose();
+    super.dispose();
   }
 
   @override
@@ -509,6 +565,20 @@ class _TransactionFiltersSelectionState
                     ? "income".tr()
                     : "";
           },
+          getCustomBorderColor: (ExpenseIncome item) {
+            Color? customBorderColor;
+            if (item == ExpenseIncome.expense) {
+              customBorderColor = getColor(context, "expenseAmount");
+            } else if (item == ExpenseIncome.income) {
+              customBorderColor = getColor(context, "incomeAmount");
+            }
+            if (customBorderColor == null) return null;
+            return dynamicPastel(
+              context,
+              lightenPastel(customBorderColor, amount: 0.3),
+              amount: 0.4,
+            );
+          },
           onSelected: (ExpenseIncome item) {
             if (selectedFilters.expenseIncome.contains(item)) {
               selectedFilters.expenseIncome.remove(item);
@@ -529,6 +599,20 @@ class _TransactionFiltersSelectionState
                     .toLowerCase()
                     .tr() ??
                 "";
+          },
+          getCustomBorderColor: (TransactionSpecialType? item) {
+            Color? customBorderColor;
+            if (item == TransactionSpecialType.credit) {
+              customBorderColor = getColor(context, "unPaidUpcoming");
+            } else if (item == TransactionSpecialType.debt) {
+              customBorderColor = getColor(context, "unPaidOverdue");
+            }
+            if (customBorderColor == null) return null;
+            return dynamicPastel(
+              context,
+              lightenPastel(customBorderColor, amount: 0.3),
+              amount: 0.4,
+            );
           },
           onSelected: (TransactionSpecialType? item) {
             if (selectedFilters.transactionTypes.contains(item)) {
@@ -902,20 +986,66 @@ class _TransactionFiltersSelectionState
           padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Column(
             children: [
-              TextInput(
+              TitleInput(
+                resizePopupWhenChanged: false,
+                titleInputController: titleContainsController,
+                titleInputScrollController: titleContainsScrollController,
                 padding: EdgeInsets.zero,
-                labelText: "title-contains".tr() + "...",
-                onChanged: (value) {
+                setSelectedCategory: (_) {},
+                setSelectedSubCategory: (_) {},
+                alsoSearchCategories: false,
+                setSelectedTitle: (String value) {
                   if (value.trim() == "") {
                     selectedFilters.titleContains = null;
                   } else {
                     selectedFilters.titleContains = value.trim();
                   }
                 },
-                initialValue: selectedFilters.titleContains,
-                icon: appStateSettings["outlinedIcons"]
-                    ? Icons.title_outlined
-                    : Icons.title_rounded,
+                showCategoryIconForRecommendedTitles: false,
+                unfocusWhenRecommendedTapped: false,
+                onNewRecommendedTitle: () {},
+                onRecommendedTitleTapped:
+                    (TransactionAssociatedTitleWithCategory title) async {
+                  List<String> splitTitles = titleContainsController.text
+                      .trim()
+                      .replaceAll(", ", ",")
+                      .split(",");
+                  if (splitTitles.length <= 0) return;
+                  splitTitles.last = title.title.title;
+                  titleContainsController.text = splitTitles.join(", ") + ", ";
+
+                  if (titleContainsController.text == "") {
+                    selectedFilters.titleContains = null;
+                  } else {
+                    selectedFilters.titleContains =
+                        titleContainsController.text.trim();
+                  }
+
+                  // Scroll to the end of the text input
+                  titleContainsController.selection =
+                      TextSelection.fromPosition(
+                    TextPosition(offset: titleContainsController.text.length),
+                  );
+                  Future.delayed(Duration(milliseconds: 50), () {
+                    // delay cannot be zero
+                    titleContainsScrollController.animateTo(
+                      titleContainsScrollController.position.maxScrollExtent,
+                      curve: Curves.easeInOutCubicEmphasized,
+                      duration: Duration(milliseconds: 500),
+                    );
+                  });
+                },
+                textToSearchFilter: (String text) {
+                  return (text.split(",").lastOrNull ?? "").trim();
+                },
+                getTextToExclude: (String text) {
+                  text = text.trim().replaceAll(", ", ",");
+                  return (text.split(","));
+                },
+                handleOnRecommendedTitleTapped: false,
+                onSubmitted: (_) {},
+                autoFocus: false,
+                labelText: "title-contains".tr() + "...",
               ),
               SizedBox(height: 7),
               TextInput(
@@ -976,12 +1106,14 @@ class AppliedFilterChips extends StatelessWidget {
     required this.searchFilters,
     required this.openFiltersSelection,
     required this.clearSearchFilters,
+    this.openSelectDate,
     this.padding = const EdgeInsets.only(bottom: 8.0),
     super.key,
   });
   final SearchFilters searchFilters;
   final Function openFiltersSelection;
   final Function clearSearchFilters;
+  final Function? openSelectDate;
   final EdgeInsets padding;
 
   Future<List<Widget>> getSearchFilterWidgets(BuildContext context) async {
@@ -1051,24 +1183,47 @@ class AppliedFilterChips extends StatelessWidget {
     if (searchFilters.expenseIncome.contains(ExpenseIncome.expense)) {
       out.add(AppliedFilterChip(
         label: "expense".tr(),
+        customBorderColor: getColor(context, "expenseAmount"),
         openFiltersSelection: openFiltersSelection,
       ));
     }
     if (searchFilters.expenseIncome.contains(ExpenseIncome.income)) {
       out.add(AppliedFilterChip(
         label: "income".tr(),
+        customBorderColor: getColor(context, "incomeAmount"),
+        openFiltersSelection: openFiltersSelection,
+      ));
+    }
+    // Cash Flow
+    if (searchFilters.positiveCashFlow == false) {
+      out.add(AppliedFilterChip(
+        label: "outgoing".tr(),
+        customBorderColor: getColor(context, "expenseAmount"),
+        openFiltersSelection: openFiltersSelection,
+      ));
+    } else if (searchFilters.positiveCashFlow == true) {
+      out.add(AppliedFilterChip(
+        label: "incoming".tr(),
+        customBorderColor: getColor(context, "incomeAmount"),
         openFiltersSelection: openFiltersSelection,
       ));
     }
     // Transaction Types
     for (TransactionSpecialType? transactionType
         in searchFilters.transactionTypes) {
+      Color? customBorderColor;
+      if (transactionType == TransactionSpecialType.credit) {
+        customBorderColor = getColor(context, "unPaidUpcoming");
+      } else if (transactionType == TransactionSpecialType.debt) {
+        customBorderColor = getColor(context, "unPaidOverdue");
+      }
       out.add(AppliedFilterChip(
         label: transactionTypeDisplayToEnum[transactionType]
                 ?.toString()
                 .toLowerCase()
                 .tr() ??
             "default".tr(),
+        customBorderColor: customBorderColor,
         openFiltersSelection: openFiltersSelection,
       ));
     }
@@ -1183,6 +1338,25 @@ class AppliedFilterChips extends StatelessWidget {
       out.add(AppliedFilterChip(
         label: "no-loan".tr(),
         openFiltersSelection: openFiltersSelection,
+      ));
+    }
+    // Date and time range
+    if (out.length > 0 &&
+        openSelectDate != null &&
+        searchFilters.dateTimeRange != null) {
+      out.add(AppliedFilterChip(
+        label: getWordedDateShortMore(
+              searchFilters.dateTimeRange!.start,
+              includeYear:
+                  searchFilters.dateTimeRange!.start != DateTime.now().year,
+            ) +
+            " – " +
+            getWordedDateShortMore(
+              searchFilters.dateTimeRange!.end,
+              includeYear:
+                  searchFilters.dateTimeRange!.end != DateTime.now().year,
+            ),
+        openFiltersSelection: () => {openSelectDate!()},
       ));
     }
 

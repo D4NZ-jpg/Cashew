@@ -26,8 +26,88 @@ import 'listItem.dart';
 
 String getChangelogString() {
   return """
+    < 5.2.8
+    New edit selected transactions popup
+    Edit title for all selected transactions
+    All time date range in search transaction page
+    Search multiple title names by separating 'title contains' filter input with a comma
+    Homepage transaction list setting - amount of days ahead to list transactions
+    When editing goals/loans list, the total amount is listed for each entry
+    Removed ability to enter decimal when setting certain values
+    Refactor floating action button
+    Auto-fill transaction titles in title inputs
+    Swipe down to sync on widescreen layout
+    Amount polarity for upcoming and overdue transaction totals
+    Bill splitter generate loan transaction steps improved - custom date, title recommendations, select subcategory
+    Prevent save changes button hide when keyboard opened
+    Deep linking API (A): Automatically add multiple transactions per link using JSON (view [About] page for information)
+    When importing CSV, if subcategory exists with the CSV entry category name, subcategory will be used
+    Improved UI layouts and icons for clarity
+    Added full black dark mode for Material You theme (A)
+    Increased contrast of selected subcategory chip in add transaction page
+    Fix padding for spending graph and space for side labels
+    Fix when back swiping, swipe to dismiss is properly cancelled
+    < 5.2.6
+    New account spending summary table
+    Improved navigation to respective pages when filters/date ranges set in spending summary table
+    Improved custom number format
+    Added complete editing text action button in add transaction page
+    Fix date range filters for account graph
+    Fix line graph double currency icon in label
+    Fix currency exchange icons
+    Translation updates
+    < 5.2.5
+    Revamped homepage pie chart section
+    Custom number format support
+    Searching date in search bar shows transactions from that time period
+    Date range included when applying filters on transaction search page
+    In transaction search page, added ability to jump to the bottom of the list
+    Scroll to bottom/top does not animate if list too long
+    Excluded budget transactions still show up in the budget list as excluded
+    Select all option when selecting transactions
+    Long pressing home page tab allows for edit home page
+    Number animation setting
+    Edit primary wallet currency setting for clarity, even though you can edit the account directly
+    Default account labelled in edit accounts page
+    Goals now show amount spent above total, if goal total type set to Total Amount
+    Short number format setting
+    Months list in transaction page cannot be scrolled past the earliest and latest transaction entered date
+    Added all outgoing/incoming or just expense/income transactions setting for homepage pie chart
+    Added color outlines to transaction filters
+    Optimized onboarding page
+    When loading backup, backup file name is displayed
+    Fix reset the paid state when changing transaction types
+    Fix cash flow filters when entering search page from positive/negative cashflow
+    Fix polarity of lent and borrowed home screen sections
+    Fix decimal precision save changes button for account edits
+    Fix clipping of goal tag progress
+    Fix default long term loan type when adding via plus button
+    < 5.2.4
+    Improved UI layout when creating a goal/long term loan
+    Long term loan offset (useful for adding interest to long term loan totals)
+    Deep linking API (A): Automate the adding of transactions using app URL links (view [About] page for information)
+    Fix color picker initial color value
+    Fix importing of backup and CSV files (A)
+    Fix widget launching add transaction route twice
+    Fix account list name alignment
+    Fix widget action launch timeout on first launch
+    Fix adding transaction from subscription/upcoming page defaults to unpaid
+    Fix archived long term loan amounts no longer count towards total summary
+    Fix long term loan total amounts and collect/settle amounts per day
+    < 5.2.3
+    Fix currency rates API
+    File attachment in-app image preview
+    File attachments use device date time instead of UTC
+    Custom tab pages, can tap the active tab again to scroll to top
+    Most repeated transactions list only show if are of normal transaction type
+    Disabled automatic home page section enable when adding first budget/goal
+    Remove delete button from app bar for long term loans
+    Consistent padding alignment for date picker
+    UI alignment fixes
+    Border radius tweaks (i)
     < 5.2.2
     Exclude transaction from counting towards reports and totals (in more options)
+    Percentage decimal precision setting (in Settings > More Options > Formatting)
     Graph axis label supports locale and short form for > 1,000
     Fixed text focus resume for inactive app
     If accounts all have same currency, currency label is removed in select chips

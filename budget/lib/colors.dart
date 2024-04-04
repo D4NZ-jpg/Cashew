@@ -47,7 +47,7 @@ Color getStandardContainerColor(BuildContext context,
           : getColor(context, "lightDarkAccentHeavyLight");
 }
 
-generateColors() {
+void generateColors() {
   appColorsLight = AppColors(
     colors: {
       "white": Colors.white,
@@ -73,7 +73,7 @@ generateColors() {
       "canvasContainer": const Color(0xFFEBEBEB),
       "lightDarkAccentHeavy": Color(0xFFEBEBEB),
       "shadowColor": const Color(0x655A5A5A),
-      "shadowColorLight": const Color(0x2D5A5A5A), //
+      "shadowColorLight": const Color(0x2D5A5A5A),
       "unPaidUpcoming": Color(0xFF58A4C2),
       "unPaidOverdue": Color(0xFF6577E0),
       "incomeAmount": Color(0xFF59A849),
@@ -375,10 +375,13 @@ getColorScheme(Brightness brightness) {
     return ColorScheme.fromSeed(
       seedColor: getSettingConstants(appStateSettings)["accentColor"],
       brightness: Brightness.dark,
-      background: appStateSettings["materialYou"]
-          ? darkenPastel(getSettingConstants(appStateSettings)["accentColor"],
-              amount: 0.92)
-          : Colors.black,
+      background: appStateSettings["forceFullDarkBackground"] == true
+          ? Colors.black
+          : appStateSettings["materialYou"]
+              ? darkenPastel(
+                  getSettingConstants(appStateSettings)["accentColor"],
+                  amount: 0.92)
+              : Colors.black,
     );
   }
 }
@@ -453,13 +456,13 @@ ThemeData? darkTheme;
 
 ThemeData getLightTheme() {
   return ThemeData(
-    pageTransitionsTheme: PageTransitionsTheme(builders: {
-      // the page route animation is set in pushRoute() - functions.dart
-      TargetPlatform.android: appStateSettings["iOSNavigation"]
-          ? CupertinoPageTransitionsBuilder()
-          : ZoomPageTransitionsBuilder(),
-      TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
-    }),
+    // pageTransitionsTheme: PageTransitionsTheme(builders: {
+    //   // the page route animation is set in pushRoute() - functions.dart
+    //   TargetPlatform.android: appStateSettings["iOSNavigation"]
+    //       ? CupertinoPageTransitionsBuilder()
+    //       : ZoomPageTransitionsBuilder(),
+    //   TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+    // }),
     fontFamily: appStateSettings["font"],
     fontFamilyFallback: ['Inter'],
     colorScheme: getColorScheme(Brightness.light),
@@ -473,36 +476,40 @@ ThemeData getLightTheme() {
     appBarTheme: AppBarTheme(
       systemOverlayStyle: getSystemUiOverlayStyle(Brightness.light),
     ),
-    splashColor: appStateSettings["materialYou"]
-        ? darkenPastel(
-                lightenPastel(
-                    getSettingConstants(appStateSettings)["accentColor"],
-                    amount: 0.8),
-                amount: 0.2)
-            .withOpacity(0.5)
-        : null,
+    splashColor: getPlatform() == PlatformOS.isIOS
+        ? Colors.transparent
+        : appStateSettings["materialYou"]
+            ? darkenPastel(
+                    lightenPastel(
+                        getSettingConstants(appStateSettings)["accentColor"],
+                        amount: 0.8),
+                    amount: 0.2)
+                .withOpacity(0.5)
+            : null,
     extensions: <ThemeExtension<dynamic>>[appColorsLight],
   );
 }
 
 ThemeData getDarkTheme() {
   return ThemeData(
-    pageTransitionsTheme: PageTransitionsTheme(builders: {
-      // the page route animation is set in pushRoute() - functions.dart
-      TargetPlatform.android: appStateSettings["iOSNavigation"]
-          ? CupertinoPageTransitionsBuilder()
-          : ZoomPageTransitionsBuilder(),
-      TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
-    }),
+    // pageTransitionsTheme: PageTransitionsTheme(builders: {
+    //   // the page route animation is set in pushRoute() - functions.dart
+    //   TargetPlatform.android: appStateSettings["iOSNavigation"]
+    //       ? CupertinoPageTransitionsBuilder()
+    //       : ZoomPageTransitionsBuilder(),
+    //   TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+    // }),
     fontFamily: appStateSettings["font"],
     fontFamilyFallback: ['Inter'],
     colorScheme: getColorScheme(Brightness.dark),
     useMaterial3: true,
     typography: Typography.material2014(),
-    canvasColor: appStateSettings["materialYou"]
-        ? darkenPastel(getSettingConstants(appStateSettings)["accentColor"],
-            amount: 0.92)
-        : Colors.black,
+    canvasColor: appStateSettings["forceFullDarkBackground"] == true
+        ? Colors.black
+        : appStateSettings["materialYou"]
+            ? darkenPastel(getSettingConstants(appStateSettings)["accentColor"],
+                amount: 0.92)
+            : Colors.black,
     appBarTheme: AppBarTheme(
       systemOverlayStyle: getSystemUiOverlayStyle(Brightness.dark),
     ),

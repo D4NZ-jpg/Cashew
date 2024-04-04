@@ -51,11 +51,13 @@ class AddWalletPage extends StatefulWidget {
     Key? key,
     this.wallet,
     required this.routesToPopAfterDelete,
+    this.runWhenOpen,
   }) : super(key: key);
 
   //When a wallet is passed in, we are editing that wallet
   final TransactionWallet? wallet;
   final RoutesToPopAfterDelete routesToPopAfterDelete;
+  final VoidCallback? runWhenOpen;
 
   @override
   _AddWalletPageState createState() => _AddWalletPageState();
@@ -176,6 +178,7 @@ class _AddWalletPageState extends State<AddWalletPage> {
     }
     populateCurrencies();
     Future.delayed(Duration.zero, () async {
+      if (widget.runWhenOpen != null) widget.runWhenOpen!();
       walletInitial = await createTransactionWallet();
     });
   }
@@ -227,13 +230,14 @@ class _AddWalletPageState extends State<AddWalletPage> {
     }
   }
 
-  void openDecimalPrecisionPopup() {
-    openBottomSheet(
+  void openDecimalPrecisionPopup() async {
+    await openBottomSheet(
       context,
       PopupFramework(
         title: "decimal-precision".tr(),
         subtitle: "decimal-precision-description".tr(),
         child: SelectAmountValue(
+          enableDecimal: false,
           amountPassed: selectedDecimals.toString(),
           setSelectedAmount: (amount, _) {
             selectedDecimals = amount.toInt();
@@ -252,6 +256,7 @@ class _AddWalletPageState extends State<AddWalletPage> {
         ),
       ),
     );
+    determineBottomButton();
   }
 
   double initialBalance = 0;
@@ -433,7 +438,7 @@ class _AddWalletPageState extends State<AddWalletPage> {
               ],
             ),
           ],
-          overlay: Align(
+          staticOverlay: Align(
             alignment: Alignment.bottomCenter,
             child: selectedTitle == "" || selectedTitle == null
                 ? SaveBottomButton(
@@ -804,13 +809,9 @@ class _CorrectBalancePopupState extends State<CorrectBalancePopup> {
                     : Icons.edit_rounded,
               ),
               onPressed: () async {
-                // Fix over-scroll stretch when keyboard pops up quickly
-                Future.delayed(Duration(milliseconds: 100), () {
-                  bottomSheetControllerGlobal.scrollTo(0,
-                      duration: Duration(milliseconds: 100));
-                });
                 await openBottomSheet(
                   context,
+                  popupWithKeyboard: true,
                   PopupFramework(
                     child: editTransferDetails,
                     title: "transaction-details".tr(),
@@ -1233,13 +1234,9 @@ class _TransferBalancePopupState extends State<TransferBalancePopup> {
                     : Icons.edit_rounded,
               ),
               onPressed: () async {
-                // Fix over-scroll stretch when keyboard pops up quickly
-                Future.delayed(Duration(milliseconds: 100), () {
-                  bottomSheetControllerGlobal.scrollTo(0,
-                      duration: Duration(milliseconds: 100));
-                });
                 await openBottomSheet(
                   context,
+                  popupWithKeyboard: true,
                   PopupFramework(
                     child: editTransferDetails,
                     title: "transaction-details".tr(),

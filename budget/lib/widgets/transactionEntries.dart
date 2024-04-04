@@ -84,6 +84,7 @@ class TransactionEntries extends StatelessWidget {
     this.onLongPressSpendingSummary,
     this.allowOpenIntoObjectiveLoanPage = true,
     this.showNumberOfDaysUntilForFutureDates = false,
+    this.showExcludedBudgetTag,
     super.key,
   });
   final TransactionEntriesRenderType renderType;
@@ -124,6 +125,7 @@ class TransactionEntries extends StatelessWidget {
   final VoidCallback? onLongPressSpendingSummary;
   final bool allowOpenIntoObjectiveLoanPage;
   final bool showNumberOfDaysUntilForFutureDates;
+  final bool Function(Transaction transaction)? showExcludedBudgetTag;
 
   Widget createTransactionEntry(
       List<TransactionWithCategory> transactionListForDay,
@@ -154,6 +156,7 @@ class TransactionEntries extends StatelessWidget {
       allowSelect: allowSelect,
       showObjectivePercentage: showObjectivePercentage,
       allowOpenIntoObjectiveLoanPage: allowOpenIntoObjectiveLoanPage,
+      showExcludedBudgetTag: showExcludedBudgetTag,
     );
   }
 
@@ -177,6 +180,10 @@ class TransactionEntries extends StatelessWidget {
       ),
       builder: (context, snapshot) {
         if (snapshot.data != null && snapshot.hasData) {
+          globalTransactionsListedOnPageID[listID ?? ""] = (snapshot.data ?? [])
+              .map((t) => t.transaction.transactionPk)
+              .take(maxSelectableTransactionsListedOnPage)
+              .toList();
           List<Section> sectionsOut = [];
           List<Widget> widgetsOut = [];
           Widget totalCashFlowWidget = SizedBox.shrink();
@@ -423,7 +430,7 @@ class TransactionEntries extends StatelessWidget {
                       padding: const EdgeInsets.only(
                         left: 10,
                         right: 10,
-                        top: 10,
+                        top: 13,
                         bottom: 8,
                       ),
                       child: TextFont(

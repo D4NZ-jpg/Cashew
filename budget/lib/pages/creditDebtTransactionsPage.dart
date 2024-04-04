@@ -41,10 +41,10 @@ class CreditDebtTransactions extends StatefulWidget {
   final bool? isCredit;
 
   @override
-  State<CreditDebtTransactions> createState() => _CreditDebtTransactionsState();
+  State<CreditDebtTransactions> createState() => CreditDebtTransactionsState();
 }
 
-class _CreditDebtTransactionsState extends State<CreditDebtTransactions>
+class CreditDebtTransactionsState extends State<CreditDebtTransactions>
     with SingleTickerProviderStateMixin {
   String pageId = "CreditDebt";
   late ScrollController _scrollController = ScrollController();
@@ -58,6 +58,11 @@ class _CreditDebtTransactionsState extends State<CreditDebtTransactions>
   String? searchValue;
   FocusNode _searchFocusNode = FocusNode();
   int? numberLongTerm;
+  GlobalKey<PageFrameworkState> pageState = GlobalKey();
+
+  void scrollToTop() {
+    pageState.currentState?.scrollToTop();
+  }
 
   @override
   void initState() {
@@ -177,6 +182,13 @@ class _CreditDebtTransactionsState extends State<CreditDebtTransactions>
           padding: const EdgeInsets.only(bottom: 8.0),
           child: CenteredAmountAndNumTransactions(
             totalWithCountStream: database.watchTotalWithCountOfCreditDebt(
+              allWallets: Provider.of<AllWallets>(context),
+              isCredit: isCredit,
+              searchString: searchValue,
+              selectedTab: _tabController.index,
+            ),
+            totalWithCountStream2:
+                database.watchTotalWithCountOfCreditDebtLongTermLoansOffset(
               allWallets: Provider.of<AllWallets>(context),
               isCredit: isCredit,
               searchString: searchValue,
@@ -310,15 +322,15 @@ class _CreditDebtTransactionsState extends State<CreditDebtTransactions>
       child: Stack(
         children: [
           PageFramework(
+            key: pageState,
             scrollController: _scrollController,
             resizeToAvoidBottomInset: true,
             floatingActionButton: AnimateFABDelayed(
               enabled: true,
-              fab: FAB(
+              fab: AddFAB(
                 tooltip: isCredit == true || isCredit == null
                     ? "add-credit".tr()
                     : "add-debt".tr(),
-                openPage: SizedBox.shrink(),
                 onTap: () {
                   openBottomSheet(
                     context,

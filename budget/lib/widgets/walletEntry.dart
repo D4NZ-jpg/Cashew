@@ -245,7 +245,7 @@ class WalletEntryRow extends StatelessWidget {
                               left: 10,
                             ),
                             child: TextFont(
-                              textAlign: TextAlign.right,
+                              textAlign: TextAlign.left,
                               text: "",
                               maxLines: 1,
                               richTextSpan: [
@@ -269,8 +269,7 @@ class WalletEntryRow extends StatelessWidget {
                                     text: "  " +
                                         "(" +
                                         convertToPercent(percent ?? 0,
-                                            useLessThanZero: true,
-                                            numberDecimals: 0) +
+                                            useLessThanZero: true) +
                                         ")",
                                     style: TextStyle(
                                       fontSize: 15,

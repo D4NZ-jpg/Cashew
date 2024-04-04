@@ -1,6 +1,7 @@
 import 'dart:developer';
 
 import 'package:budget/functions.dart';
+import 'package:budget/main.dart';
 import 'package:budget/pages/addBudgetPage.dart';
 import 'package:budget/pages/homePage/homePageLineGraph.dart';
 import 'package:budget/pages/objectivesListPage.dart';
@@ -21,6 +22,7 @@ import 'package:drift/drift.dart';
 export 'platform/shared.dart';
 import 'dart:convert';
 import 'package:budget/struct/currencyFunctions.dart';
+import 'package:easy_localization/easy_localization.dart';
 import 'schema_versions.dart';
 import 'package:flutter/material.dart' show DateTimeRange;
 
@@ -1479,15 +1481,22 @@ class FinanceDatabase extends _$FinanceDatabase {
                 onlyShowBasedOnSubcategoryFks(transactions, categoryFks)) &
             onlyShowBasedOnWalletFks(transactions, walletFks) &
             onlyShowIfMember(transactions, member) &
-            onlyShowIfNotExcludedFromBudget(transactions, budget?.budgetPk) &
+            //onlyShowIfNotExcludedFromBudget(transactions, budget?.budgetPk) &
             onlyShowIfCertainBudget(
                 transactions, onlyShowTransactionsBelongingToBudgetPk),
       );
 
     return query.watch().map((rows) => rows.map((row) {
+          Transaction transaction = row.readTable(transactions);
+          if (budget?.budgetPk != null &&
+              transaction.budgetFksExclude != null &&
+              transaction.budgetFksExclude?.contains(budget?.budgetPk) ==
+                  true) {
+            transaction = transaction.copyWith(paid: false);
+          }
           return TransactionWithCategory(
               category: row.readTable(categories),
-              transaction: row.readTable(transactions),
+              transaction: transaction,
               budget: row.readTableOrNull(budgets),
               objective: row.readTableOrNull(objectives),
               subCategory: row.readTableOrNull(subCategories));
@@ -1945,9 +1954,11 @@ class FinanceDatabase extends _$FinanceDatabase {
   Future<List<TransactionAssociatedTitleWithCategory>>
       getSimilarAssociatedTitles({
     required String title,
+    List<String> excludeTitles = const [],
     int? limit,
     int? offset,
     bool alsoSearchCategories = true,
+    bool tryToCompleteSearch = false,
   }) async {
     limit = limit ?? DEFAULT_LIMIT;
 
@@ -1957,9 +1968,14 @@ class FinanceDatabase extends _$FinanceDatabase {
           categories.categoryPk.equalsExp(associatedTitles.categoryFk)),
     ])
                   ..where(associatedTitles.title
-                      .collate(Collate.noCase)
-                      .like("%" + title + "%"))
-                  ..orderBy([OrderingTerm.desc(associatedTitles.order)])
+                          .collate(Collate.noCase)
+                          .like("%" + title + "%") &
+                      associatedTitles.title.isNotIn(excludeTitles))
+                  ..groupBy([associatedTitles.title])
+                  // Remove duplicate title titles only if not searching categories
+                  ..orderBy(alsoSearchCategories
+                      ? []
+                      : [OrderingTerm.desc(associatedTitles.order)])
                   ..limit(limit, offset: offset ?? DEFAULT_OFFSET))
                 .get())
             .map((rows) {
@@ -1977,26 +1993,28 @@ class FinanceDatabase extends _$FinanceDatabase {
       limit = limit - list.length;
 
     // Search based on individual words
-    list.addAll((await (select(associatedTitles).join([
-      innerJoin(categories,
-          categories.categoryPk.equalsExp(associatedTitles.categoryFk)),
-    ])
-              ..where(associatedTitles.title
-                  .collate(Collate.noCase)
-                  .isIn(title.split(" ")))
-              ..orderBy([OrderingTerm.desc(associatedTitles.order)])
-              ..limit(limit, offset: offset ?? DEFAULT_OFFSET))
-            .get())
-        .map((rows) {
-      TransactionAssociatedTitle foundTitle = rows.readTable(associatedTitles);
-      return TransactionAssociatedTitleWithCategory(
-        title: foundTitle.copyWith(
-            title: completePartialTitle(title, foundTitle.title)),
-        category: rows.readTable(categories),
-        type: TitleType.PartialTitleExists,
-        partialTitleString: foundTitle.title,
-      );
-    }).toList());
+    if (tryToCompleteSearch)
+      list.addAll((await (select(associatedTitles).join([
+        innerJoin(categories,
+            categories.categoryPk.equalsExp(associatedTitles.categoryFk)),
+      ])
+                ..where(associatedTitles.title
+                    .collate(Collate.noCase)
+                    .isIn(title.split(" ")))
+                ..orderBy([OrderingTerm.desc(associatedTitles.order)])
+                ..limit(limit, offset: offset ?? DEFAULT_OFFSET))
+              .get())
+          .map((rows) {
+        TransactionAssociatedTitle foundTitle =
+            rows.readTable(associatedTitles);
+        return TransactionAssociatedTitleWithCategory(
+          title: foundTitle.copyWith(
+              title: completePartialTitle(title, foundTitle.title)),
+          category: rows.readTable(categories),
+          type: TitleType.PartialTitleExists,
+          partialTitleString: foundTitle.title,
+        );
+      }).toList());
 
     if (list.length > limit)
       return removeDuplicateTransactionAssociatedTitleWithCategory(list);
@@ -2038,31 +2056,32 @@ class FinanceDatabase extends _$FinanceDatabase {
     //   limit = limit - list.length;
 
     // Search category names
-    list.addAll((await (select(categories)
-              ..where(
-                  (c) => c.name.collate(Collate.noCase).like("%" + title + "%"))
-              ..orderBy([
-                (c) => OrderingTerm.asc(c.mainCategoryPk),
-                (c) => OrderingTerm.asc(c.order),
-              ])
-              ..limit(limit, offset: offset ?? DEFAULT_OFFSET))
-            .get())
-        .map((TransactionCategory category) {
-      return TransactionAssociatedTitleWithCategory(
-        title: TransactionAssociatedTitle(
-          associatedTitlePk: "-1",
-          categoryFk: category.categoryPk,
-          title: category.name,
-          dateCreated: category.dateCreated,
-          order: -1,
-          isExactMatch: false,
-        ),
-        category: category,
-        type: category.mainCategoryPk == null
-            ? TitleType.CategoryName
-            : TitleType.SubCategoryName,
-      );
-    }).toList());
+    if (alsoSearchCategories)
+      list.addAll((await (select(categories)
+                ..where((c) =>
+                    c.name.collate(Collate.noCase).like("%" + title + "%"))
+                ..orderBy([
+                  (c) => OrderingTerm.asc(c.mainCategoryPk),
+                  (c) => OrderingTerm.asc(c.order),
+                ])
+                ..limit(limit, offset: offset ?? DEFAULT_OFFSET))
+              .get())
+          .map((TransactionCategory category) {
+        return TransactionAssociatedTitleWithCategory(
+          title: TransactionAssociatedTitle(
+            associatedTitlePk: "-1",
+            categoryFk: category.categoryPk,
+            title: category.name,
+            dateCreated: category.dateCreated,
+            order: -1,
+            isExactMatch: false,
+          ),
+          category: category,
+          type: category.mainCategoryPk == null
+              ? TitleType.CategoryName
+              : TitleType.SubCategoryName,
+        );
+      }).toList());
 
     return removeDuplicateTransactionAssociatedTitleWithCategory(list);
   }
@@ -2654,33 +2673,39 @@ class FinanceDatabase extends _$FinanceDatabase {
       companionToInsert =
           companionToInsert.copyWith(objectivePk: Value.absent());
 
-      // If homepage section disabled and user added an objective, enable homepage section
-      if (appStateSettings[objective.type == ObjectiveType.goal
-                  ? "showObjectives"
-                  : "showObjectiveLoans"] ==
-              false &&
-          objective.pinned == true) {
-        int amountObjectives =
-            (await getAllObjectives(objectiveType: objective.type)).length;
-        if (amountObjectives <= 0) {
-          await updateSettings(
-            objective.type == ObjectiveType.goal
-                ? "showObjectives"
-                : "showObjectiveLoans",
-            true,
-            updateGlobalState: false,
-            pagesNeedingRefresh: [0],
-          );
-          await updateSettings(
-            objective.type == ObjectiveType.goal
-                ? "showObjectivesFullScreen"
-                : "showObjectivesFullScreen",
-            true,
-            updateGlobalState: false,
-            pagesNeedingRefresh: [0],
-          );
-        }
+      // Objective loans should always have offset of 0 when inserted for the first time
+      if (objective.type == ObjectiveType.loan &&
+          getIsDifferenceOnlyLoan(objective) == false) {
+        companionToInsert = companionToInsert.copyWith(amount: Value(0));
       }
+
+      // If homepage section disabled and user added an objective, enable homepage section
+      // if (appStateSettings[objective.type == ObjectiveType.goal
+      //             ? "showObjectives"
+      //             : "showObjectiveLoans"] ==
+      //         false &&
+      //     objective.pinned == true) {
+      //   int amountObjectives =
+      //       (await getAllObjectives(objectiveType: objective.type)).length;
+      //   if (amountObjectives <= 0) {
+      //     await updateSettings(
+      //       objective.type == ObjectiveType.goal
+      //           ? "showObjectives"
+      //           : "showObjectiveLoans",
+      //       true,
+      //       updateGlobalState: false,
+      //       pagesNeedingRefresh: [0],
+      //     );
+      //     await updateSettings(
+      //       objective.type == ObjectiveType.goal
+      //           ? "showObjectivesFullScreen"
+      //           : "showObjectivesFullScreen",
+      //       true,
+      //       updateGlobalState: false,
+      //       pagesNeedingRefresh: [0],
+      //     );
+      //   }
+      // }
     }
 
     return into(objectives)
@@ -2767,6 +2792,16 @@ class FinanceDatabase extends _$FinanceDatabase {
                       : onlyShowMainCategoryListing(c)) &
                   c.name.collate(Collate.noCase).like("%" + searchFor + "%"))
               ..limit(limit ?? DEFAULT_LIMIT, offset: offset ?? DEFAULT_OFFSET))
+            .get())
+        .firstOrNull;
+  }
+
+  Future<TransactionWallet?> getRelatingWallet(String searchFor,
+      {int? limit}) async {
+    return (await (select(wallets)
+              ..where((c) =>
+                  c.name.collate(Collate.noCase).like("%" + searchFor + "%"))
+              ..limit(limit ?? DEFAULT_LIMIT))
             .get())
         .firstOrNull;
   }
@@ -4001,16 +4036,16 @@ class FinanceDatabase extends _$FinanceDatabase {
       companionToInsert = companionToInsert.copyWith(budgetPk: Value.absent());
 
       // If homepage section disabled and user added a budget, enable homepage section
-      if (appStateSettings["showPinnedBudgets"] == false &&
-          budget.pinned == true) {
-        int amountBudgets = (await getAllBudgets()).length;
-        if (amountBudgets <= 0) {
-          await updateSettings("showPinnedBudgets", true,
-              updateGlobalState: false, pagesNeedingRefresh: [0]);
-          await updateSettings("showPinnedBudgetsFullScreen", true,
-              updateGlobalState: false, pagesNeedingRefresh: [0]);
-        }
-      }
+      // if (appStateSettings["showPinnedBudgets"] == false &&
+      //     budget.pinned == true) {
+      //   int amountBudgets = (await getAllBudgets()).length;
+      //   if (amountBudgets <= 0) {
+      //     await updateSettings("showPinnedBudgets", true,
+      //         updateGlobalState: false, pagesNeedingRefresh: [0]);
+      //     await updateSettings("showPinnedBudgetsFullScreen", true,
+      //         updateGlobalState: false, pagesNeedingRefresh: [0]);
+      //   }
+      // }
     }
 
     return into(budgets)
@@ -4040,10 +4075,11 @@ class FinanceDatabase extends _$FinanceDatabase {
   }
 
   // getIsDifferenceOnlyLoan(objective)
+  // This defines what a difference only loan can be
   Expression<bool> getIsDifferenceOnlyLoanFromTable($ObjectivesTable o) {
     if (appStateSettings["longTermLoansDifferenceFeature"] == false)
       return Constant(false);
-    return o.amount.equals(0) & o.type.equals(ObjectiveType.loan.index);
+    return o.amount.equals(-1) & o.type.equals(ObjectiveType.loan.index);
   }
 
   Future<Objective?> getPersonsLongTermDifferenceLoanInstance(
@@ -4057,19 +4093,17 @@ class FinanceDatabase extends _$FinanceDatabase {
   }
 
   // get category given name
+  // Returns either subcategory or category!
   Future<TransactionCategory> getCategoryInstanceGivenName(String name) async {
-    return (await (select(categories)
-              ..where(
-                  (c) => onlyShowMainCategoryListing(c) & c.name.equals(name)))
-            .get())
+    return (await (select(categories)..where((c) => c.name.equals(name))).get())
         .first;
   }
 
+  // Returns either subcategory or category!
   Future<TransactionCategory> getCategoryInstanceGivenNameTrim(
       String name) async {
     return (await (select(categories)
               ..where((c) =>
-                  onlyShowMainCategoryListing(c) &
                   c.name.lower().trim().equals(name.toLowerCase().trim())))
             .get())
         .first;
@@ -4302,9 +4336,19 @@ class FinanceDatabase extends _$FinanceDatabase {
   }
 
   Future<List<Objective>> getAllObjectives(
-      {required ObjectiveType objectiveType}) {
+      {required ObjectiveType objectiveType,
+      bool? showDifferenceLoans,
+      bool? isArchived}) {
     return (select(objectives)
-          ..where((t) => t.type.equals(objectiveType.index))
+          ..where((t) =>
+              t.type.equals(objectiveType.index) &
+              (isArchived == null
+                  ? Constant(true)
+                  : t.archived.equals(isArchived)) &
+              (showDifferenceLoans == null
+                  ? Constant(true)
+                  : getIsDifferenceOnlyLoanFromTable(objectives)
+                      .equals(showDifferenceLoans)))
           ..orderBy([(c) => OrderingTerm.asc(c.order)]))
         .get();
   }
@@ -4599,6 +4643,16 @@ class FinanceDatabase extends _$FinanceDatabase {
     for (Transaction transaction in transactionsWithSubCategory) {
       transactionsInserting.add(transaction.copyWith(
           subCategoryFk: Value(null), dateTimeModified: Value(DateTime.now())));
+    }
+    await updateBatchTransactionsOnly(transactionsInserting);
+  }
+
+  Future changeTransactionsTitle(
+      List<Transaction> transactionsToUpdate, String title) async {
+    List<Transaction> transactionsInserting = [];
+    for (Transaction transaction in transactionsToUpdate) {
+      transactionsInserting.add(transaction.copyWith(
+          name: title, dateTimeModified: Value(DateTime.now())));
     }
     await updateBatchTransactionsOnly(transactionsInserting);
   }
@@ -5471,12 +5525,23 @@ class FinanceDatabase extends _$FinanceDatabase {
       withObjectives: joinedWithObjectives,
     );
 
-    String? titleContains = searchFilters.titleContains;
-    Expression<bool> isInTitleContains = titleContains == null
-        ? Constant(true)
-        : tbl.name.collate(Collate.noCase).like("%" + titleContains + "%");
-    String? noteContains = searchFilters.noteContains;
+    Expression<bool> isInTitleContains =
+        searchFilters.titleContains == null || searchFilters.titleContains == ""
+            ? Constant(true)
+            : Constant(false);
 
+    if (searchFilters.titleContains != null) {
+      String stringToSplit = searchFilters.titleContains ?? "";
+      if (stringToSplit.endsWith(",")) {
+        stringToSplit = stringToSplit.substring(0, stringToSplit.length - 1);
+      }
+      for (String titleContain in stringToSplit.split(", ")) {
+        isInTitleContains |=
+            tbl.name.collate(Collate.noCase).like("%" + titleContain + "%");
+      }
+    }
+
+    String? noteContains = searchFilters.noteContains;
     Expression<bool> isInNoteContains = noteContains == null
         ? Constant(true)
         : tbl.note.collate(Collate.noCase).like("%" + noteContains + "%");
@@ -5533,7 +5598,65 @@ class FinanceDatabase extends _$FinanceDatabase {
                     .like("%" + searchQuery + "%")
                 : Constant(false)) |
             tbl.name.collate(Collate.noCase).like("%" + searchQuery + "%") |
-            tbl.note.collate(Collate.noCase).like("%" + searchQuery + "%");
+            tbl.note.collate(Collate.noCase).like("%" + searchQuery + "%") |
+            onlyShowIfSearchQueryDateIsDate(searchQuery, tbl.dateCreated);
+  }
+
+  Expression<bool> onlyShowIfSearchQueryDateIsDate(
+      String searchQuery, GeneratedColumn<DateTime> dateTime) {
+    final List<String> words = searchQuery.toLowerCase().split(' ');
+
+    int? year;
+    int? day;
+    int? month;
+
+    for (final word in words) {
+      if (localizedMonthNames.contains(word)) {
+        month = localizedMonthNames.indexOf(word) + 1;
+      } else {
+        final intNumber = int.tryParse(word);
+        if (intNumber != null) {
+          if (intNumber >= 1 && intNumber <= 31) {
+            day = intNumber;
+          } else if (intNumber >= 1000 && intNumber <= 9999) {
+            year = intNumber;
+          }
+        }
+      }
+    }
+
+    Expression<bool>? yearExpression;
+    Expression<bool>? monthExpression;
+    Expression<bool>? dayExpression;
+
+    if (month != null) {
+      // Only parse the date if the user entered a month name
+      monthExpression = dateTime.month.equals(month);
+
+      if (year != null) {
+        yearExpression = dateTime.year.equals(year);
+      }
+      if (day != null) {
+        dayExpression = dateTime.day.equals(day);
+      }
+    }
+
+    Expression<bool>? resultExpression;
+    if (yearExpression != null) {
+      resultExpression = yearExpression;
+    }
+    if (monthExpression != null) {
+      resultExpression = resultExpression == null
+          ? monthExpression
+          : resultExpression & monthExpression;
+    }
+    if (dayExpression != null) {
+      resultExpression = resultExpression == null
+          ? dayExpression
+          : resultExpression & dayExpression;
+    }
+
+    return resultExpression ?? Constant(false);
   }
 
   Expression<bool> onlyShowIfFollowsFilters(
@@ -6344,6 +6467,7 @@ class FinanceDatabase extends _$FinanceDatabase {
             count: (acc?.count ?? 0) + (val?.count ?? 0))));
   }
 
+  // Related query: watchTotalWithCountOfCreditDebtLongTermLoansOffset
   Stream<TotalWithCount?> watchTotalWithCountOfCreditDebt({
     required AllWallets allWallets,
     required bool? isCredit,
@@ -6387,18 +6511,25 @@ class FinanceDatabase extends _$FinanceDatabase {
                       forcedDateTimeRange: forcedDateTimeRange,
                     )) &
               transactions.paid.equals(true) &
+              (transactions.objectiveLoanFk.isNull() |
+                  objectives.archived.equals(false)) &
+              (selectedTab == 0 && searchString != null
+                  ? transactions.objectiveLoanFk.isNull()
+                  : selectedTab == 1 && searchString != null
+                      ? transactions.objectiveLoanFk.isNotNull()
+                      : Constant(true)) &
               (selectedTab == 0 ||
                       selectedTab == null ||
                       searchString == null ||
                       searchString == ""
-                  ? onlyShowTransactionBasedOnSearchQuery(
+                  ? (onlyShowTransactionBasedOnSearchQuery(
                       transactions, searchString,
                       withCategories: true,
-                      joinedWithSubcategoriesTable: subCategories)
+                      joinedWithSubcategoriesTable: subCategories))
                   // Only apply this tab specific total when searching
-                  : (objectives.name
+                  : ((objectives.name
                       .collate(Collate.noCase)
-                      .like("%" + (searchString ?? "") + "%"))) &
+                      .like("%" + (searchString ?? "") + "%")))) &
               transactions.walletFk.equals(wallet.walletPk) &
               (isCredit == null
                   ? transactions.type
@@ -6416,12 +6547,67 @@ class FinanceDatabase extends _$FinanceDatabase {
                           (transactions.objectiveLoanFk.isNotNull() &
                               objectives.income.equals(false))),
         );
-      mergedStreams.add(query
-          .map((row) => TotalWithCount(
-              total: (row.read(totalAmt) ?? 0) *
-                  (amountRatioToPrimaryCurrency(allWallets, wallet.currency)),
-              count: row.read(totalCount) ?? 0))
-          .watchSingle());
+      mergedStreams.add(query.map((row) {
+        // print(row.rawData.data);
+        return TotalWithCount(
+            total: (row.read(totalAmt) ?? 0) *
+                (amountRatioToPrimaryCurrency(allWallets, wallet.currency)),
+            count: row.read(totalCount) ?? 0);
+      }).watchSingle());
+    }
+    return totalTotalWithCountStream(mergedStreams);
+  }
+
+  // Related query: watchTotalWithCountOfCreditDebt
+  Stream<TotalWithCount?> watchTotalWithCountOfCreditDebtLongTermLoansOffset({
+    required AllWallets allWallets,
+    required bool? isCredit,
+    String? searchString,
+    bool followCustomPeriodCycle = false,
+    String? cycleSettingsExtension = "",
+    SearchFilters? searchFilters,
+    DateTimeRange? forcedDateTimeRange,
+    // selectedTab == 0 : one-time
+    // selectedTab == 1 : long-term
+    // Only apply selectedTab when searching
+    required int? selectedTab,
+  }) {
+    List<Stream<TotalWithCount?>> mergedStreams = [];
+    for (TransactionWallet wallet in allWallets.list) {
+      // Add the total offsets of objective amounts
+      Expression<double> totalAmtObjective = objectives.amount.sum();
+      Expression<bool> objectiveIncome = objectives.income;
+      final queryTotalObjectiveAmountOffset = selectOnly(objectives)
+        ..addColumns([totalAmtObjective, objectiveIncome])
+        ..where(objectives.archived.equals(false) &
+            objectives.type.equals(ObjectiveType.loan.index) &
+            objectives.walletFk.equals(wallet.walletPk) &
+            getIsDifferenceOnlyLoanFromTable(objectives).equals(false) &
+            (selectedTab == 0 && searchString != null
+                ? Constant(false)
+                : Constant(true)) &
+            (selectedTab == 0 ||
+                    selectedTab == null ||
+                    searchString == null ||
+                    searchString == ""
+                ? Constant(true)
+                // Only apply this tab specific total when searching
+                : (objectives.name
+                    .collate(Collate.noCase)
+                    .like("%" + (searchString ?? "") + "%"))) &
+            (isCredit == null
+                ? Constant(true)
+                : isCredit
+                    ? objectives.income.equals(true)
+                    : objectives.income.equals(false)));
+      mergedStreams.add(queryTotalObjectiveAmountOffset.map((row) {
+        // print(row.rawData.data);
+        return TotalWithCount(
+            total: (row.read(totalAmtObjective) ?? 0).abs() *
+                ((row.read(objectiveIncome) ?? true) ? -1 : 1) *
+                (amountRatioToPrimaryCurrency(allWallets, wallet.currency)),
+            count: 0);
+      }).watchSingle());
     }
     return totalTotalWithCountStream(mergedStreams);
   }
@@ -6599,12 +6785,13 @@ class FinanceDatabase extends _$FinanceDatabase {
     return totalDoubleStream(mergedStreams);
   }
 
-  Stream<EarliestLatestDateTme?> watchEarliestLatestTransactionDateTime({
+  Stream<EarliestLatestDateTime?> watchEarliestLatestTransactionDateTime({
     required SearchFilters? searchFilters,
+    bool? paid = true,
   }) {
     final query = select(transactions)
       ..where((t) =>
-          t.paid.equals(true) &
+          (paid == null ? Constant(true) : t.paid.equals(paid)) &
           onlyShowIfFollowsSearchFilters(t, searchFilters,
               joinedWithSubcategoriesTable: null,
               joinedWithCategories: false,
@@ -6614,7 +6801,7 @@ class FinanceDatabase extends _$FinanceDatabase {
 
     return query.watch().map((rows) {
       if (rows.isNotEmpty) {
-        return EarliestLatestDateTme(
+        return EarliestLatestDateTime(
             earliest: rows.first.dateCreated, latest: rows.last.dateCreated);
       } else {
         return null;
@@ -6763,7 +6950,8 @@ class FinanceDatabase extends _$FinanceDatabase {
             1000;
 
     return customSelect(
-      'SELECT *, COUNT(*) as "count" FROM transactions WHERE date_created >= $threeMonthsAgo GROUP BY transactions.category_fk, transactions.name ORDER BY count DESC, MAX(date_created) DESC LIMIT 5',
+      // and name != \'\' (users may use subcategory transactions that are repeated, might not have a title)
+      'SELECT *, COUNT(*) as "count" FROM transactions WHERE date_created >= $threeMonthsAgo and type IS NULL GROUP BY transactions.category_fk, transactions.name ORDER BY count DESC, MAX(date_created) DESC LIMIT 5',
       readsFrom: {transactions},
     ).watch().map((rows) {
       return rows
@@ -6912,11 +7100,11 @@ class TotalWithCount {
   TotalWithCount({required this.total, required this.count});
 }
 
-class EarliestLatestDateTme {
+class EarliestLatestDateTime {
   final DateTime earliest;
   final DateTime latest;
 
-  EarliestLatestDateTme({required this.earliest, required this.latest});
+  EarliestLatestDateTime({required this.earliest, required this.latest});
 }
 
 enum TitleType {

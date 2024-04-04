@@ -31,6 +31,7 @@ import 'package:budget/widgets/openPopup.dart';
 import 'package:budget/widgets/pieChart.dart';
 import 'package:budget/widgets/ratingPopup.dart';
 import 'package:budget/widgets/selectedTransactionsAppBar.dart';
+import 'package:budget/widgets/util/deepLinks.dart';
 import 'package:budget/widgets/util/keepAliveClientMixin.dart';
 import 'package:budget/widgets/textWidgets.dart';
 import 'package:budget/widgets/transactionEntry/swipeToSelectTransactions.dart';
@@ -65,6 +66,11 @@ class HomePageState extends State<HomePage>
   }
 
   void scrollToTop({int duration = 1200}) {
+    // if (_scrollController.offset <= 0) {
+    //   pushRoute(context, EditHomePage());
+    // } else {
+
+    // }
     _scrollController.animateTo(0,
         duration: Duration(
             milliseconds:
@@ -123,8 +129,6 @@ class HomePageState extends State<HomePage>
     }
     return countAfter == 0;
   }
-
-  GlobalKey<PieChartDisplayState> _pieChartDisplayStateKey = GlobalKey();
 
   @override
   Widget build(BuildContext context) {
@@ -203,10 +207,7 @@ class HomePageState extends State<HomePage>
           ? HomePageLineGraph(selectedSlidingSelector: selectedSlidingSelector)
           : null,
       "pieChart": isHomeScreenSectionEnabled(context, "showPieChart")
-          ? HomePagePieChart(
-              pieChartDisplayStateKey: _pieChartDisplayStateKey,
-              selectedSlidingSelector: selectedSlidingSelector,
-            )
+          ? HomePagePieChart()
           : null,
       "heatMap": isHomeScreenSectionEnabled(context, "showHeatMap")
           ? HomePageHeatMap()

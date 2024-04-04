@@ -1,12 +1,7 @@
-import 'dart:collection';
-
 import 'package:budget/colors.dart';
 import 'package:budget/database/tables.dart';
 import 'package:budget/functions.dart';
-import 'package:budget/pages/addBudgetPage.dart';
-import 'package:budget/pages/addCategoryPage.dart';
 import 'package:budget/pages/addObjectivePage.dart';
-import 'package:budget/pages/editBudgetPage.dart';
 import 'package:budget/pages/editObjectivesPage.dart';
 import 'package:budget/pages/objectivePage.dart';
 import 'package:budget/struct/currencyFunctions.dart';
@@ -15,27 +10,24 @@ import 'package:budget/struct/randomConstants.dart';
 import 'package:budget/struct/settings.dart';
 import 'package:budget/widgets/budgetContainer.dart';
 import 'package:budget/widgets/categoryIcon.dart';
-import 'package:budget/widgets/editRowEntry.dart';
 import 'package:budget/widgets/navigationSidebar.dart';
-import 'package:budget/widgets/noResults.dart';
 import 'package:budget/widgets/openBottomSheet.dart';
 import 'package:budget/widgets/framework/pageFramework.dart';
 import 'package:budget/widgets/openContainerNavigation.dart';
 import 'package:budget/widgets/openPopup.dart';
 import 'package:budget/widgets/tappable.dart';
 import 'package:budget/widgets/textWidgets.dart';
-import 'package:budget/widgets/util/widgetSize.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart'
     hide SliverReorderableList, ReorderableDelayedDragStartListener;
 import 'package:provider/provider.dart';
-
 import 'addButton.dart';
 
+// This defines what a difference only loan can be
 bool getIsDifferenceOnlyLoan(Objective objective) {
-  return objective.amount == 0 &&
+  return objective.amount == -1 &&
       objective.type == ObjectiveType.loan &&
-      appStateSettings["longTermLoansDifferenceFeature"];
+      appStateSettings["longTermLoansDifferenceFeature"] == true;
 }
 
 // negative to collect / you are owed
@@ -47,17 +39,29 @@ double getDifferenceOfLoan(
       : objectiveAmount - totalAmount;
 }
 
-class ObjectivesListPage extends StatelessWidget {
+class ObjectivesListPage extends StatefulWidget {
   const ObjectivesListPage({required this.backButton, Key? key})
       : super(key: key);
   final bool backButton;
 
   @override
+  State<ObjectivesListPage> createState() => ObjectivesListPageState();
+}
+
+class ObjectivesListPageState extends State<ObjectivesListPage> {
+  GlobalKey<PageFrameworkState> pageState = GlobalKey();
+
+  void scrollToTop() {
+    pageState.currentState?.scrollToTop();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return PageFramework(
+      key: pageState,
       dragDownToDismiss: true,
       title: "goals".tr(),
-      backButton: backButton,
+      backButton: widget.backButton,
       horizontalPadding: enableDoubleColumn(context) == false
           ? getHorizontalPaddingConstrained(context)
           : 0,
@@ -194,6 +198,7 @@ class ObjectiveList extends StatelessWidget {
                                 routesToPopAfterDelete:
                                     RoutesToPopAfterDelete.PreventDelete,
                                 objectiveType: objectiveType,
+                                selectedIncome: isIncome,
                               ),
                               height: 150,
                             ),
@@ -243,6 +248,7 @@ class ObjectiveList extends StatelessWidget {
                                   routesToPopAfterDelete:
                                       RoutesToPopAfterDelete.PreventDelete,
                                   objectiveType: objectiveType,
+                                  selectedIncome: isIncome,
                                 ),
                               );
                       } else {
@@ -479,6 +485,7 @@ class ObjectiveContainer extends StatelessWidget {
                                                     objective,
                                                     totalAmount,
                                                     percentageTowardsGoal,
+                                                    objectiveAmount,
                                                   );
                                                 }
                                                 return TextFont(
@@ -603,29 +610,14 @@ class ObjectiveContainer extends StatelessWidget {
                                                   context, "incomeAmount")
                                               : getColor(context, "black"),
                                     ),
-                                    if (isShowingAmountRemaining(
-                                        showTotalSpent: appStateSettings[
-                                            "showTotalSpentForObjective"],
-                                        objectiveAmount: objectiveAmount,
-                                        totalAmount: totalAmount))
-                                      Padding(
-                                        padding:
-                                            const EdgeInsets.only(bottom: 2),
-                                        child: TextFont(
-                                          text: " " + "remaining".tr(),
-                                          fontSize: 15,
-                                          textColor: getColor(context, "black")
-                                              .withOpacity(0.3),
-                                        ),
-                                      ),
                                     Padding(
                                       padding: const EdgeInsets.only(bottom: 2),
                                       child: TextFont(
-                                        text: " / " +
-                                            convertToMoney(
-                                                Provider.of<AllWallets>(
-                                                    context),
-                                                objectiveAmount),
+                                        text: objectiveRemainingAmountText(
+                                          objectiveAmount: objectiveAmount,
+                                          totalAmount: totalAmount,
+                                          context: context,
+                                        ),
                                         fontSize: 15,
                                         textColor: getColor(context, "black")
                                             .withOpacity(0.3),
@@ -968,11 +960,8 @@ class ObjectiveContainerDifferenceLoan extends StatelessWidget {
 }
 
 String getObjectiveStatus(BuildContext context, Objective objective,
-    double totalAmount, double percentageTowardsGoal,
+    double totalAmount, double percentageTowardsGoal, double objectiveAmount,
     {bool addSpendingSavingIndication = false}) {
-  double objectiveAmount = objectiveAmountToPrimaryCurrency(
-      Provider.of<AllWallets>(context, listen: true), objective);
-
   String content;
   if (objective.endDate == null) return "";
   int remainingDays = objective.endDate!
@@ -1016,14 +1005,6 @@ String getObjectiveStatus(BuildContext context, Objective objective,
   return content;
 }
 
-bool isShowingAmountRemaining({
-  required bool showTotalSpent,
-  required double objectiveAmount,
-  required double totalAmount,
-}) {
-  return showTotalSpent == false && totalAmount < objectiveAmount;
-}
-
 String getObjectiveAmountSpentLabel({
   required BuildContext context,
   required Objective objective,
@@ -1031,15 +1012,13 @@ String getObjectiveAmountSpentLabel({
   required double objectiveAmount,
   required double totalAmount,
 }) {
-  bool showTotalRemaining = isShowingAmountRemaining(
-      showTotalSpent: showTotalSpent,
-      objectiveAmount: objectiveAmount,
-      totalAmount: totalAmount);
   double amountSpent =
-      showTotalRemaining ? objectiveAmount - totalAmount : totalAmount;
+      showTotalSpent ? totalAmount : (objectiveAmount - totalAmount);
   if (getIsDifferenceOnlyLoan(objective)) {
     amountSpent =
         getDifferenceOfLoan(objective, totalAmount, objectiveAmount).abs();
+  } else if (showTotalSpent == false && totalAmount > objectiveAmount) {
+    amountSpent = amountSpent.abs();
   }
   String amountSpentLabel = convertToMoney(
     Provider.of<AllWallets>(context),
@@ -1066,7 +1045,18 @@ class WatchTotalAndAmountOfObjective extends StatelessWidget {
             stream: database.watchTotalAmountObjectiveLoan(
                 Provider.of<AllWallets>(context, listen: true), objective),
             builder: (context, snapshotAmount) {
-              double objectiveAmount = snapshotAmount.data ?? 0;
+              double objectiveAmount = (snapshotAmount.data ?? 0);
+              if (getIsDifferenceOnlyLoan(objective) == false) {
+                double objectiveAmountConverted = objective.amount *
+                    amountRatioToPrimaryCurrency(
+                      Provider.of<AllWallets>(context),
+                      Provider.of<AllWallets>(context)
+                          .indexedByPk[objective.walletFk]
+                          ?.currency,
+                    );
+                objectiveAmount = objectiveAmount +
+                    (objectiveAmountConverted * (objective.income ? -1 : 1));
+              }
               double totalAmount =
                   ((snapshot.data ?? 0) - (snapshotAmount.data ?? 0)) * -1;
               double percentageTowardsGoal =
@@ -1077,10 +1067,11 @@ class WatchTotalAndAmountOfObjective extends StatelessWidget {
                         .indexedByPk[appStateSettings["selectedWalletPk"]]
                         ?.decimals ??
                     2;
-                if ((absoluteZero(objectiveAmount)
-                            .toStringAsFixed(numberDecimals) ==
-                        absoluteZero(totalAmount)
-                            .toStringAsFixed(numberDecimals)) &&
+                if ((double.tryParse(getDifferenceOfLoan(
+                                objective, totalAmount, objectiveAmount)
+                            .abs()
+                            .toStringAsFixed(numberDecimals)) ==
+                        0) &&
                     snapshot.hasData &&
                     snapshotAmount.hasData)
                   percentageTowardsGoal = 1;

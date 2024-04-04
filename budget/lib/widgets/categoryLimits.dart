@@ -92,6 +92,8 @@ class _CategoryLimitsState extends State<CategoryLimits> {
                                 convertToMoney(Provider.of<AllWallets>(context),
                                     widget.budgetLimit))
                             : (convertToPercent(number,
+                                    numberDecimals: 2,
+                                    shouldRemoveTrailingZeroes: true,
                                     finalNumber: snapshot.data ?? 0) +
                                 " / " +
                                 "100%"),
@@ -223,6 +225,7 @@ class CategoryLimitEntry extends StatelessWidget {
             child: Row(
               children: [
                 CategoryIconPercent(
+                  percentageOffset: 0,
                   category: category,
                   percent: isAbsoluteSpendingLimit
                       ? (budgetLimit == 0
@@ -250,23 +253,23 @@ class CategoryLimitEntry extends StatelessWidget {
                       ),
                       TextFont(
                         text: isAbsoluteSpendingLimit
-                            ? (budgetLimit == 0
-                                    ? "0"
-                                    : ((categoryLimitAmount / budgetLimit) *
-                                            100)
-                                        .toInt()
-                                        .toString()) +
-                                "%" +
+                            ? convertToPercent(
+                                  budgetLimit == 0
+                                      ? 0
+                                      : categoryLimitAmount / budgetLimit * 100,
+                                  numberDecimals: 2,
+                                  shouldRemoveTrailingZeroes: true,
+                                ) +
                                 " " +
                                 (isSubCategory == true
-                                    ? "of-category".tr()
-                                    : "of-budget".tr())
+                                    ? "of-category".tr().toLowerCase()
+                                    : "of-budget".tr().toLowerCase())
                             : (convertToMoney(Provider.of<AllWallets>(context),
                                     budgetLimit * categoryLimitAmount / 100) +
                                 " " +
                                 (isSubCategory == true
-                                    ? "of-category".tr()
-                                    : "of-budget".tr())),
+                                    ? "of-category".tr().toLowerCase()
+                                    : "of-budget".tr().toLowerCase())),
                         fontSize: 14,
                         textColor: getColor(context, "textLight"),
                       ),
@@ -283,7 +286,11 @@ class CategoryLimitEntry extends StatelessWidget {
                                   .indexedByPk[categoryLimit?.walletFk ??
                                       appStateSettings["selectedWalletPk"]]
                                   ?.currency)
-                      : convertToPercent(categoryLimit?.amount ?? 0),
+                      : convertToPercent(
+                          categoryLimit?.amount ?? 0,
+                          numberDecimals: 2,
+                          shouldRemoveTrailingZeroes: true,
+                        ),
                   placeholder: isAbsoluteSpendingLimit
                       ? convertToMoney(Provider.of<AllWallets>(context), 0,
                           currencyKey:
@@ -370,6 +377,8 @@ class CategoryLimitEntry extends StatelessWidget {
                                         Provider.of<AllWallets>(context),
                                         subCategoryBudgetLimit))
                                 : (convertToPercent(number,
+                                        numberDecimals: 2,
+                                        shouldRemoveTrailingZeroes: true,
                                         finalNumber: snapshot.data ?? 0) +
                                     " / " +
                                     "100%"),

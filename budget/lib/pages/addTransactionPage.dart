@@ -1,13 +1,11 @@
 import 'package:budget/database/generatePreviewData.dart';
 import 'package:budget/database/tables.dart';
 import 'package:budget/functions.dart';
-import 'package:budget/pages/accountsPage.dart';
 import 'package:budget/pages/addBudgetPage.dart';
 import 'package:budget/pages/addCategoryPage.dart';
 import 'package:budget/pages/addObjectivePage.dart';
 import 'package:budget/pages/addWalletPage.dart';
 import 'package:budget/pages/editAssociatedTitlesPage.dart';
-import 'package:budget/pages/editObjectivesPage.dart';
 import 'package:budget/pages/editWalletsPage.dart';
 import 'package:budget/pages/objectivesListPage.dart';
 import 'package:budget/pages/sharedBudgetSettings.dart';
@@ -16,14 +14,16 @@ import 'package:budget/struct/databaseGlobal.dart';
 import 'package:budget/struct/navBarIconsData.dart';
 import 'package:budget/struct/settings.dart';
 import 'package:budget/struct/uploadAttachment.dart';
+import 'package:budget/widgets/accountAndBackup.dart';
+import 'package:budget/widgets/navigationFramework.dart';
+import 'package:flutter/scheduler.dart';
+import 'package:googleapis/drive/v3.dart' as drive;
 import 'package:budget/widgets/button.dart';
 import 'package:budget/widgets/categoryIcon.dart';
 import 'package:budget/widgets/dropdownSelect.dart';
-import 'package:budget/widgets/fadeIn.dart';
 import 'package:budget/widgets/globalSnackbar.dart';
 import 'package:budget/widgets/incomeExpenseTabSelector.dart';
 import 'package:budget/widgets/navigationSidebar.dart';
-import 'package:budget/widgets/pieChart.dart';
 import 'package:budget/widgets/selectedTransactionsAppBar.dart';
 import 'package:budget/widgets/settingsContainers.dart';
 import 'package:budget/widgets/sliverStickyLabelDivider.dart';
@@ -40,18 +40,15 @@ import 'package:budget/widgets/textInput.dart';
 import 'package:budget/widgets/textWidgets.dart';
 import 'package:budget/widgets/selectChips.dart';
 import 'package:budget/widgets/saveBottomButton.dart';
-import 'package:budget/widgets/transactionEntry/incomeAmountArrow.dart';
 import 'package:budget/widgets/transactionEntry/transactionEntry.dart';
 import 'package:budget/widgets/transactionEntry/transactionEntryTypeButton.dart';
 import 'package:budget/widgets/transactionEntry/transactionLabel.dart';
 import 'package:budget/widgets/util/contextMenu.dart';
-import 'package:budget/widgets/util/debouncer.dart';
 import 'package:budget/widgets/util/showDatePicker.dart';
 import 'package:budget/widgets/util/widgetSize.dart';
 import 'package:budget/widgets/viewAllTransactionsButton.dart';
 import 'package:drift/drift.dart' hide Column;
 import 'package:easy_localization/easy_localization.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'dart:async';
@@ -65,12 +62,10 @@ import 'package:budget/widgets/framework/popupFramework.dart';
 import 'package:budget/struct/currencyFunctions.dart';
 import 'package:budget/widgets/animatedExpanded.dart';
 import 'package:budget/widgets/iconButtonScaled.dart';
-import 'package:material_symbols_icons/symbols.dart';
-
-import '../struct/linkHighlighter.dart';
-import '../widgets/listItem.dart';
-import '../widgets/outlinedButtonStacked.dart';
-import '../widgets/tappableTextEntry.dart';
+import 'package:budget/struct/linkHighlighter.dart';
+import 'package:budget/widgets/listItem.dart';
+import 'package:budget/widgets/outlinedButtonStacked.dart';
+import 'package:budget/widgets/tappableTextEntry.dart';
 
 //TODO
 //only show the tags that correspond to selected category
@@ -99,10 +94,14 @@ class AddTransactionPage extends StatefulWidget {
     this.selectedType,
     this.selectedObjective,
     this.selectedIncome,
+    this.useCategorySelectedIncome = false,
     this.selectedAmount,
     this.selectedTitle,
     this.selectedCategory,
     this.selectedSubCategory,
+    this.selectedWallet,
+    this.selectedDate,
+    this.selectedNotes,
     this.startInitialAddTransactionSequence = true,
     this.transferBalancePopup = false,
     required this.routesToPopAfterDelete,
@@ -115,10 +114,14 @@ class AddTransactionPage extends StatefulWidget {
   final Objective? selectedObjective;
   final RoutesToPopAfterDelete routesToPopAfterDelete;
   final bool? selectedIncome;
+  final bool useCategorySelectedIncome;
   final double? selectedAmount;
   final String? selectedTitle;
   final TransactionCategory? selectedCategory;
   final TransactionCategory? selectedSubCategory;
+  final TransactionWallet? selectedWallet;
+  final DateTime? selectedDate;
+  final String? selectedNotes;
   final bool startInitialAddTransactionSequence;
   final bool transferBalancePopup;
 
@@ -267,9 +270,19 @@ class _AddTransactionPageState extends State<AddTransactionPage>
         selectedPaid = false;
       }
 
-      if (selectedType == TransactionSpecialType.credit ||
-          selectedType == TransactionSpecialType.debt) {
+      if ((widget.transaction?.type != TransactionSpecialType.credit &&
+              selectedType == TransactionSpecialType.credit) ||
+          (widget.transaction?.type != TransactionSpecialType.debt &&
+              selectedType == TransactionSpecialType.debt)) {
         selectedPaid = true;
+      }
+      if ((widget.transaction?.type != TransactionSpecialType.subscription &&
+              selectedType == TransactionSpecialType.subscription) ||
+          (widget.transaction?.type != TransactionSpecialType.repetitive &&
+              selectedType == TransactionSpecialType.repetitive) ||
+          (widget.transaction?.type != TransactionSpecialType.upcoming &&
+              selectedType == TransactionSpecialType.upcoming)) {
+        selectedPaid = false;
       }
     });
     return;
@@ -368,7 +381,11 @@ class _AddTransactionPageState extends State<AddTransactionPage>
   Future<bool> addTransaction() async {
     if (lockAddTransaction) return false;
     lockAddTransaction = true;
+
     bool result = await addTransactionLocked();
+    //Wait for the UI frame to finish updating to allow smooth animation afterwards
+    await SchedulerBinding.instance.endOfFrame;
+
     lockAddTransaction = false;
     return result;
   }
@@ -730,7 +747,7 @@ class _AddTransactionPageState extends State<AddTransactionPage>
       });
     } else {
       if (widget.selectedType != null) {
-        selectedType = widget.selectedType;
+        setSelectedType(transactionTypeDisplayToEnum[widget.selectedType]);
       }
 
       _titleInputController = new TextEditingController();
@@ -746,7 +763,7 @@ class _AddTransactionPageState extends State<AddTransactionPage>
           openBottomSheet(
             context,
             // Only allow full snap when entering a title
-            fullSnap: true,
+            popupWithKeyboard: true,
             SelectTitle(
               selectedTitle: selectedTitle,
               setSelectedNote: setSelectedNoteController,
@@ -762,13 +779,9 @@ class _AddTransactionPageState extends State<AddTransactionPage>
                   selectedDate = date;
                 });
               },
+              selectedDate: widget.selectedDate,
             ),
           );
-          // Fix over-scroll stretch when keyboard pops up quickly
-          Future.delayed(Duration(milliseconds: 100), () {
-            bottomSheetControllerGlobal.scrollTo(0,
-                duration: Duration(milliseconds: 100));
-          });
         } else {
           afterSetTitle();
         }
@@ -789,9 +802,12 @@ class _AddTransactionPageState extends State<AddTransactionPage>
     }
     if (widget.selectedAmount != null) {
       selectedAmount = (widget.selectedAmount ?? 0).abs();
+      selectedIncome = (widget.selectedAmount ?? -1).isNegative == false;
     }
     if (widget.selectedCategory != null) {
       selectedCategory = widget.selectedCategory;
+      if (widget.useCategorySelectedIncome)
+        selectedIncome = selectedCategory?.income ?? selectedIncome;
     }
     if (widget.selectedSubCategory != null) {
       selectedSubCategory = widget.selectedSubCategory;
@@ -804,6 +820,15 @@ class _AddTransactionPageState extends State<AddTransactionPage>
     }
     if (widget.selectedIncome != null) {
       selectedIncome = widget.selectedIncome!;
+    }
+    if (widget.selectedWallet != null) {
+      selectedWalletPk = widget.selectedWallet!.walletPk;
+    }
+    if (widget.selectedDate != null) {
+      selectedDate = widget.selectedDate!;
+    }
+    if (widget.selectedNotes != null) {
+      setSelectedNoteController(widget.selectedNotes ?? "");
     }
     if (widget.transaction == null) {
       Future.delayed(Duration.zero, () {
@@ -1010,6 +1035,8 @@ class _AddTransactionPageState extends State<AddTransactionPage>
             ? Container(height: 20)
             : Container(height: 10),
         TitleInput(
+          clearWhenUnfocused: true,
+          tryToCompleteSearch: true,
           setSelectedTitle: (title) {
             setSelectedTitle(title, setInput: false);
           },
@@ -1046,6 +1073,8 @@ class _AddTransactionPageState extends State<AddTransactionPage>
                 child: AnimatedSwitcher(
                   duration: Duration(milliseconds: 300),
                   child: DateButton(
+                    internalPadding:
+                        EdgeInsets.only(left: 12, bottom: 6, top: 6, right: 8),
                     key: ValueKey(selectedDate.toString()),
                     initialSelectedDate: selectedDate,
                     initialSelectedTime: TimeOfDay(
@@ -1434,8 +1463,8 @@ class _AddTransactionPageState extends State<AddTransactionPage>
                       enabled: enableDoubleColumn(context),
                       child: Padding(
                         padding: const EdgeInsets.only(
-                          left: 20,
-                          right: 20,
+                          left: 22,
+                          right: 22,
                           bottom: 8,
                           top: 5,
                         ),
@@ -1496,8 +1525,8 @@ class _AddTransactionPageState extends State<AddTransactionPage>
                                 if (selectedType == null)
                                   Padding(
                                     padding: const EdgeInsets.only(
-                                      left: 20,
-                                      right: 20,
+                                      left: 22,
+                                      right: 22,
                                       bottom: 8,
                                       top: 5,
                                     ),
@@ -1513,8 +1542,8 @@ class _AddTransactionPageState extends State<AddTransactionPage>
                                 if (widget.transaction != null)
                                   Padding(
                                     padding: const EdgeInsets.only(
-                                      left: 20,
-                                      right: 20,
+                                      left: 22,
+                                      right: 22,
                                       bottom: 8,
                                       top: 5,
                                     ),
@@ -1973,7 +2002,8 @@ class _AddTransactionPageState extends State<AddTransactionPage>
                   )
                 : SizedBox.shrink()
           ],
-          overlay: Align(
+          overlay: MinimizeKeyboardFABOverlay(isEnabled: notesInputFocused),
+          staticOverlay: Align(
             alignment: Alignment.bottomCenter,
             child: Row(
               children: [
@@ -2054,35 +2084,6 @@ class _AddTransactionPageState extends State<AddTransactionPage>
                                       },
                                     );
                                   }
-                                },
-                              ),
-                            );
-                          },
-                        )
-                      : Container(
-                          key: ValueKey(2),
-                        ),
-                ),
-                AnimatedSizeSwitcher(
-                  child: notesInputFocused && getPlatform() == PlatformOS.isIOS
-                      ? WidgetSizeBuilder(
-                          widgetBuilder: (Size? size) {
-                            return Container(
-                              key: ValueKey(1),
-                              width: size?.width,
-                              child: SaveBottomButton(
-                                margin: EdgeInsets.only(left: 5),
-                                color: isTransactionActionDealtWith(
-                                        createTransaction())
-                                    ? Theme.of(context).colorScheme.primary
-                                    : null,
-                                labelColor: isTransactionActionDealtWith(
-                                        createTransaction())
-                                    ? Theme.of(context).colorScheme.onPrimary
-                                    : null,
-                                label: "done".tr(),
-                                onTap: () async {
-                                  FocusManager.instance.primaryFocus?.unfocus();
                                 },
                               ),
                             );
@@ -2350,8 +2351,11 @@ class SelectTitle extends StatefulWidget {
     required this.setSelectedSubCategory,
     required this.setSelectedDateTime,
     this.selectedTitle,
+    this.selectedDate,
     required this.noteInputController,
     this.next,
+    this.disableAskForNote = false,
+    this.customTitleInputWidgetBuilder,
   }) : super(key: key);
   final Function(String) setSelectedTitle;
   final Function(String) setSelectedNote;
@@ -2359,8 +2363,12 @@ class SelectTitle extends StatefulWidget {
   final Function(TransactionCategory) setSelectedSubCategory;
   final Function(DateTime) setSelectedDateTime;
   final String? selectedTitle;
+  final DateTime? selectedDate;
   final TextEditingController noteInputController;
   final VoidCallback? next;
+  final bool disableAskForNote;
+  final Widget Function(FocusNode enterTitleFocus)?
+      customTitleInputWidgetBuilder;
 
   @override
   _SelectTitleState createState() => _SelectTitleState();
@@ -2377,8 +2385,21 @@ class _SelectTitleState extends State<SelectTitle> {
         selectedAssociatedTitle?.type == TitleType.SubCategoryName;
   }
 
+  FocusNode enterTitleFocus = FocusNode();
+
+  @override
+  void dispose() {
+    enterTitleFocus.dispose();
+    super.dispose();
+  }
+
   @override
   void initState() {
+    if (widget.selectedDate != null) {
+      selectedDateTime = widget.selectedDate ?? DateTime.now();
+      customDateTimeSelected = true;
+    }
+
     super.initState();
   }
 
@@ -2448,6 +2469,7 @@ class _SelectTitleState extends State<SelectTitle> {
                 // Update the size of the bottom sheet
                 Future.delayed(Duration(milliseconds: 100), () {
                   bottomSheetControllerGlobal.snapToExtent(0);
+                  enterTitleFocus.requestFocus();
                 });
               },
             ),
@@ -2462,7 +2484,7 @@ class _SelectTitleState extends State<SelectTitle> {
               child: AnimatedSwitcher(
                 duration: Duration(milliseconds: 300),
                 child: DateButton(
-                  internalPadding: EdgeInsets.only(right: 5),
+                  internalPadding: EdgeInsets.zero,
                   key: ValueKey(selectedDateTime.toString()),
                   initialSelectedDate: selectedDateTime,
                   initialSelectedTime: TimeOfDay(
@@ -2471,11 +2493,13 @@ class _SelectTitleState extends State<SelectTitle> {
                   setSelectedDate: (date) {
                     selectedDateTime = date;
                     widget.setSelectedDateTime(selectedDateTime);
+                    enterTitleFocus.requestFocus();
                   },
                   setSelectedTime: (time) {
                     selectedDateTime = selectedDateTime.copyWith(
                         hour: time.hour, minute: time.minute);
                     widget.setSelectedDateTime(selectedDateTime);
+                    enterTitleFocus.requestFocus();
                   },
                   timeBackgroundColor: (appStateSettings["materialYou"]
                       ? Theme.of(context).colorScheme.secondaryContainer
@@ -2484,165 +2508,173 @@ class _SelectTitleState extends State<SelectTitle> {
               ),
             ),
           ),
-          Container(
-            child: TextInput(
-              icon: appStateSettings["outlinedIcons"]
-                  ? Icons.title_outlined
-                  : Icons.title_rounded,
-              initialValue: widget.selectedTitle,
-              autoFocus: true,
-              onEditingComplete: selectTitle,
-              onChanged: (text) async {
-                selectedText = text;
-                widget.setSelectedTitle(text.trim());
+          ...(widget.customTitleInputWidgetBuilder != null
+              ? [widget.customTitleInputWidgetBuilder!(enterTitleFocus)]
+              : [
+                  TextInput(
+                    icon: appStateSettings["outlinedIcons"]
+                        ? Icons.title_outlined
+                        : Icons.title_rounded,
+                    initialValue: widget.selectedTitle,
+                    autoFocus: true,
+                    focusNode: enterTitleFocus,
+                    onEditingComplete: selectTitle,
+                    onChanged: (text) async {
+                      selectedText = text;
+                      widget.setSelectedTitle(text.trim());
 
-                if (text.trim() == "" || text.trim().length < 2) {
-                  resetTitleSearch();
-                  return;
-                }
+                      if (text.trim() == "" || text.trim().length < 2) {
+                        resetTitleSearch();
+                        return;
+                      }
 
-                TransactionAssociatedTitleWithCategory? selectedTitleLocal =
-                    (await database.getSimilarAssociatedTitles(
-                            title: text, limit: 1))
-                        .firstOrNull;
+                      TransactionAssociatedTitleWithCategory?
+                          selectedTitleLocal =
+                          (await database.getSimilarAssociatedTitles(
+                                  title: text, limit: 1))
+                              .firstOrNull;
 
-                if (selectedTitleLocal != null) {
-                  // Update the size of the bottom sheet
-                  Future.delayed(Duration(milliseconds: 100), () {
-                    bottomSheetControllerGlobal.snapToExtent(0);
-                  });
-                  setState(() {
-                    selectedAssociatedTitle = selectedTitleLocal;
-                  });
-                } else {
-                  resetTitleSearch();
-                }
-              },
-              labelText: "title-placeholder".tr(),
-              padding: EdgeInsets.zero,
-            ),
-          ),
-          AnimatedSizeSwitcher(
-            sizeDuration: Duration(milliseconds: 400),
-            sizeCurve: Curves.easeInOut,
-            child: selectedAssociatedTitle == null
-                ? Container(
-                    key: ValueKey(0),
-                  )
-                : Container(
-                    key: ValueKey(selectedAssociatedTitle?.category.categoryPk),
-                    padding: EdgeInsets.only(top: 13),
-                    child: Tappable(
-                      borderRadius: 15,
-                      color: Colors.transparent,
-                      onTap: () {
-                        selectTitle();
-                      },
-                      child: Row(
-                        children: [
-                          CategoryIcon(
-                            categoryPk: "-1",
-                            size: 40,
-                            category: selectedAssociatedTitle?.category,
-                            margin: EdgeInsets.zero,
-                            onTap: () {
-                              selectTitle();
-                            },
-                          ),
-                          SizedBox(width: 10),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                TextFont(
-                                  text:
-                                      selectedAssociatedTitle?.category.name ??
-                                          "",
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                                !foundFromCategory
-                                    ? TextFont(
-                                        text: "",
-                                        richTextSpan: generateSpans(
-                                          context: context,
-                                          fontSize: 16,
-                                          mainText: selectedAssociatedTitle
-                                                  ?.title.title ??
-                                              "",
-                                          boldedText: selectedAssociatedTitle
-                                              ?.partialTitleString,
-                                        ),
-                                      )
-                                    : Container(),
-                              ],
-                            ),
+                      if (selectedTitleLocal != null) {
+                        // Update the size of the bottom sheet
+                        Future.delayed(Duration(milliseconds: 100), () {
+                          bottomSheetControllerGlobal.snapToExtent(0);
+                        });
+                        setState(() {
+                          selectedAssociatedTitle = selectedTitleLocal;
+                        });
+                      } else {
+                        resetTitleSearch();
+                      }
+                    },
+                    labelText: "title-placeholder".tr(),
+                    padding: EdgeInsets.zero,
+                  ),
+                  AnimatedSizeSwitcher(
+                    sizeDuration: Duration(milliseconds: 400),
+                    sizeCurve: Curves.easeInOut,
+                    child: selectedAssociatedTitle == null
+                        ? Container(
+                            key: ValueKey(0),
                           )
-                        ],
+                        : Container(
+                            key: ValueKey(
+                                selectedAssociatedTitle?.category.categoryPk),
+                            padding: EdgeInsets.only(top: 13),
+                            child: Tappable(
+                              borderRadius: 15,
+                              color: Colors.transparent,
+                              onTap: () {
+                                selectTitle();
+                              },
+                              child: Row(
+                                children: [
+                                  CategoryIcon(
+                                    categoryPk: "-1",
+                                    size: 40,
+                                    category: selectedAssociatedTitle?.category,
+                                    margin: EdgeInsets.zero,
+                                    onTap: () {
+                                      selectTitle();
+                                    },
+                                  ),
+                                  SizedBox(width: 10),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        TextFont(
+                                          text: selectedAssociatedTitle
+                                                  ?.category.name ??
+                                              "",
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                        !foundFromCategory
+                                            ? TextFont(
+                                                text: "",
+                                                richTextSpan: generateSpans(
+                                                  context: context,
+                                                  fontSize: 16,
+                                                  mainText:
+                                                      selectedAssociatedTitle
+                                                              ?.title.title ??
+                                                          "",
+                                                  boldedText:
+                                                      selectedAssociatedTitle
+                                                          ?.partialTitleString,
+                                                ),
+                                              )
+                                            : Container(),
+                                      ],
+                                    ),
+                                  )
+                                ],
+                              ),
+                            ),
+                          ),
+                  ),
+                  if (widget.disableAskForNote == false &&
+                          getIsFullScreen(context) ||
+                      appStateSettings["askForTransactionNoteWithTitle"])
+                    Padding(
+                      padding: const EdgeInsets.only(top: 13),
+                      child: Container(
+                        child: TransactionNotesTextInput(
+                          noteInputController: widget.noteInputController,
+                          setNotesInputFocused: (isFocused) {},
+                          setSelectedNoteController: (note, {setInput = true}) {
+                            // Adding this line jumps cursor to the end when editing,
+                            // we don't need because the noteInputController is already passed in!
+                            // widget.setSelectedNote(note);
+
+                            // Update the size of the bottom sheet
+                            // Need to do it slowly because the link container size is animated slowly
+                            Future.delayed(Duration(milliseconds: 200), () {
+                              bottomSheetControllerGlobal.scrollTo(0);
+                            });
+                          },
+                        ),
                       ),
                     ),
-                  ),
-          ),
-          getIsFullScreen(context) ||
-                  appStateSettings["askForTransactionNoteWithTitle"]
-              ? Padding(
-                  padding: const EdgeInsets.only(top: 13),
-                  child: Container(
-                    child: TransactionNotesTextInput(
-                      noteInputController: widget.noteInputController,
-                      setNotesInputFocused: (isFocused) {},
-                      setSelectedNoteController: (note, {setInput = true}) {
-                        // Adding this line jumps cursor to the end when editing,
-                        // we don't need because the noteInputController is already passed in!
-                        // widget.setSelectedNote(note);
-
-                        // Update the size of the bottom sheet
-                        // Need to do it slowly because the link container size is animated slowly
-                        Future.delayed(Duration(milliseconds: 200), () {
-                          bottomSheetControllerGlobal.scrollTo(0);
-                        });
-                      },
-                    ),
-                  ),
-                )
-              : SizedBox.shrink(),
-          // AnimatedSwitcher(
-          //   duration: Duration(milliseconds: 300),
-          //   child: CategoryIcon(
-          //     key: ValueKey(selectedCategory?.categoryPk ?? ""),
-          //     margin: EdgeInsets.zero,
-          //     categoryPk: selectedCategory?.categoryPk ?? 0,
-          //     size: 55,
-          //     onTap: () {
-          //       openBottomSheet(
-          //         context,
-          //         PopupFramework(
-          //           title: "select-category".tr(),
-          //           child: SelectCategory(
-          //             setSelectedCategory: (TransactionCategory category) {
-          //               widget.setSelectedCategory(category);
-          //               setState(() {
-          //                 selectedCategory = category;
-          //               });
-          //             },
-          //           ),
-          //         ),
-          //       );
-          //     },
-          //   ),
-          // ),
-          SizedBox(height: 15),
-          widget.next != null
-              ? Button(
-                  label: "select-category".tr(),
-                  onTap: () {
-                    Navigator.pop(context);
-                    if (widget.next != null) {
-                      widget.next!();
-                    }
-                  },
-                )
-              : SizedBox.shrink(),
+                  // AnimatedSwitcher(
+                  //   duration: Duration(milliseconds: 300),
+                  //   child: CategoryIcon(
+                  //     key: ValueKey(selectedCategory?.categoryPk ?? ""),
+                  //     margin: EdgeInsets.zero,
+                  //     categoryPk: selectedCategory?.categoryPk ?? 0,
+                  //     size: 55,
+                  //     onTap: () {
+                  //       openBottomSheet(
+                  //         context,
+                  //         PopupFramework(
+                  //           title: "select-category".tr(),
+                  //           child: SelectCategory(
+                  //             setSelectedCategory: (TransactionCategory category) {
+                  //               widget.setSelectedCategory(category);
+                  //               setState(() {
+                  //                 selectedCategory = category;
+                  //               });
+                  //             },
+                  //           ),
+                  //         ),
+                  //       );
+                  //     },
+                  //   ),
+                  // ),
+                  SizedBox(height: 15),
+                  widget.next != null
+                      ? Button(
+                          label: "select-category".tr(),
+                          onTap: () {
+                            Navigator.pop(context);
+                            if (widget.next != null) {
+                              widget.next!();
+                            }
+                          },
+                        )
+                      : SizedBox.shrink(),
+                ])
         ],
       ),
     );
@@ -2707,6 +2739,7 @@ class SelectText extends StatefulWidget {
     this.backgroundColor,
     this.widgetBeside,
     required this.buttonLabel,
+    this.maxLength,
   }) : super(key: key);
   final Function(String) setSelectedText;
   final String? selectedText;
@@ -2725,6 +2758,7 @@ class SelectText extends StatefulWidget {
   final Color? backgroundColor;
   final Widget? widgetBeside;
   final String? buttonLabel;
+  final int? maxLength;
 
   @override
   _SelectTextState createState() => _SelectTextState();
@@ -2766,6 +2800,7 @@ class _SelectTextState extends State<SelectText> {
           children: [
             Expanded(
               child: TextInput(
+                maxLength: widget.maxLength,
                 backgroundColor: widget.backgroundColor,
                 inputFormatters: widget.inputFormatters,
                 focusNode: _focusNode,
@@ -2846,6 +2881,7 @@ class _EnterTextButtonState extends State<EnterTextButton> {
         onTap: () {
           openBottomSheet(
             context,
+            popupWithKeyboard: true,
             PopupFramework(
               title: widget.title,
               child: SelectText(
@@ -3189,11 +3225,16 @@ class _SelectExcludeBudgetState extends State<SelectExcludeBudget> {
         if (snapshot.hasData) {
           if (snapshot.data!.length <= 0)
             return Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 15),
-              child: TextFont(
-                text: "no-budgets-found".tr(),
-                fontSize: 16,
-                textAlign: TextAlign.center,
+              padding: const EdgeInsets.only(
+                  left: 17, right: 17, top: 6, bottom: 15),
+              child: Row(
+                children: [
+                  TextFont(
+                    text: "no-budgets-found".tr(),
+                    fontSize: 15,
+                    textAlign: TextAlign.left,
+                  ),
+                ],
               ),
             );
           return Padding(
@@ -3594,6 +3635,7 @@ class SelectTransactionTypePopup extends StatelessWidget {
                         in TransactionSpecialType.values)
                       IgnorePointer(
                         child: TransactionEntryActionButton(
+                          padding: EdgeInsets.symmetric(horizontal: 6),
                           allowOpenIntoObjectiveLoanPage: false,
                           transaction: Transaction(
                             transactionPk: "-1",
@@ -3711,6 +3753,7 @@ class MainAndSubcategory {
 Future<MainAndSubcategory> selectCategorySequence(
   BuildContext context, {
   Widget? extraWidgetAfter,
+  Widget? extraWidgetBefore,
   bool? skipIfSet,
   required TransactionCategory? selectedCategory,
   required Function(TransactionCategory)? setSelectedCategory,
@@ -3720,6 +3763,7 @@ Future<MainAndSubcategory> selectCategorySequence(
   required bool?
       selectedIncomeInitial, // if this is null, always show all categories
   String? subtitle,
+  bool allowReorder = true,
 }) async {
   MainAndSubcategory mainAndSubcategory = MainAndSubcategory();
   dynamic result = await openBottomSheet(
@@ -3727,6 +3771,7 @@ Future<MainAndSubcategory> selectCategorySequence(
     SelectCategoryWithIncomeExpenseSelector(
       subtitle: subtitle,
       extraWidgetAfter: extraWidgetAfter,
+      extraWidgetBefore: extraWidgetBefore,
       skipIfSet: skipIfSet,
       selectedCategory: selectedCategory,
       setSelectedCategory: setSelectedCategory,
@@ -3734,6 +3779,7 @@ Future<MainAndSubcategory> selectCategorySequence(
       setSelectedSubCategory: setSelectedSubCategory,
       setSelectedIncome: setSelectedIncome,
       selectedIncomeInitial: selectedIncomeInitial,
+      allowReorder: allowReorder,
     ),
   );
   if (result != null && result is TransactionCategory) {
@@ -3815,6 +3861,7 @@ Future<MainAndSubcategory> selectCategorySequence(
 class SelectCategoryWithIncomeExpenseSelector extends StatefulWidget {
   const SelectCategoryWithIncomeExpenseSelector({
     required this.extraWidgetAfter,
+    required this.extraWidgetBefore,
     required this.skipIfSet,
     required this.selectedCategory,
     required this.setSelectedCategory,
@@ -3822,11 +3869,13 @@ class SelectCategoryWithIncomeExpenseSelector extends StatefulWidget {
     required this.setSelectedSubCategory,
     required this.setSelectedIncome,
     required this.selectedIncomeInitial,
+    this.allowReorder = true,
     this.subtitle,
     super.key,
   });
 
   final Widget? extraWidgetAfter;
+  final Widget? extraWidgetBefore;
   final bool? skipIfSet;
   final TransactionCategory? selectedCategory;
   final Function(TransactionCategory)? setSelectedCategory;
@@ -3834,6 +3883,7 @@ class SelectCategoryWithIncomeExpenseSelector extends StatefulWidget {
   final Function(TransactionCategory?)? setSelectedSubCategory;
   final Function(bool?)? setSelectedIncome;
   final bool? selectedIncomeInitial;
+  final bool allowReorder;
   final String? subtitle;
 
   @override
@@ -3896,21 +3946,23 @@ class _SelectCategoryWithIncomeExpenseSelectorState
                       }
                     },
                   ),
-                DropdownItemMenu(
-                  id: "reorder-categories",
-                  label: "reorder-categories".tr(),
-                  icon: appStateSettings["outlinedIcons"]
-                      ? Icons.flip_to_front_outlined
-                      : Icons.flip_to_front_rounded,
-                  action: () async {
-                    Navigator.pop(context);
-                    openBottomSheet(context, ReorderCategoriesPopup());
-                  },
-                ),
+                if (widget.allowReorder)
+                  DropdownItemMenu(
+                    id: "reorder-categories",
+                    label: "reorder-categories".tr(),
+                    icon: appStateSettings["outlinedIcons"]
+                        ? Icons.flip_to_front_outlined
+                        : Icons.flip_to_front_rounded,
+                    action: () async {
+                      Navigator.pop(context);
+                      openBottomSheet(context, ReorderCategoriesPopup());
+                    },
+                  ),
               ],
             ),
       child: Column(
         children: [
+          if (widget.extraWidgetBefore != null) widget.extraWidgetBefore!,
           if (widget.setSelectedIncome != null)
             IncomeExpenseButtonSelector(setSelectedIncome: (value) {
               setSelectedIncome(value);
@@ -3958,6 +4010,103 @@ class ReorderCategoriesPopup extends StatelessWidget {
             },
           )
         ],
+      ),
+    );
+  }
+}
+
+String? getFileIdFromUrl(String url) {
+  RegExp regExp = RegExp(r"/d/([a-zA-Z0-9_-]+)");
+  Match? match = regExp.firstMatch(url);
+  if (match != null && match.groupCount >= 1) {
+    return match.group(1)!;
+  } else {
+    return null;
+  }
+}
+
+Future<List<int>?> getGoogleDriveFileImageData(String url) async {
+  dynamic result = await openLoadingPopupTryCatch(
+    () async {
+      String? fileId = getFileIdFromUrl(url);
+      if (fileId == null) throw ("No file id found!");
+
+      if (googleUser == null) {
+        await signInGoogle(
+            drivePermissions: true, drivePermissionsAttachments: true);
+      }
+
+      final authHeaders = await googleUser!.authHeaders;
+      final authenticateClient = GoogleAuthClient(authHeaders);
+      drive.DriveApi driveApi = drive.DriveApi(authenticateClient);
+
+      List<int> dataStore = [];
+
+      drive.File fileMetadata =
+          await driveApi.files.get(fileId, $fields: 'size') as drive.File;
+      int totalBytes = int.parse(fileMetadata.size ?? "0");
+
+      dynamic response = await driveApi.files
+          .get(fileId, downloadOptions: drive.DownloadOptions.fullMedia);
+
+      num receivedBytes = 0;
+
+      loadingProgressKey.currentState?.setProgressPercentage(0);
+
+      await for (var data in response.stream) {
+        dataStore.insertAll(dataStore.length, data);
+        receivedBytes += data.length;
+        double progress = receivedBytes / totalBytes;
+        loadingProgressKey.currentState?.setProgressPercentage(progress);
+      }
+      loadingProgressKey.currentState?.setProgressPercentage(0);
+      return dataStore;
+    },
+    onError: (error) {
+      loadingProgressKey.currentState?.setProgressPercentage(0);
+      print(error);
+    },
+  );
+  if (result is List<int>) return result;
+  return null;
+}
+
+class RenderImageData extends StatelessWidget {
+  const RenderImageData(
+      {required this.imageData, required this.openLinkOnError, super.key});
+  final List<int>? imageData;
+  final VoidCallback openLinkOnError;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onLongPress: () {
+        openLinkOnError();
+      },
+      child: Image.memory(
+        Uint8List.fromList(imageData ?? []),
+        errorBuilder: (context, error, stackTrace) => Center(
+          child: Tappable(
+            onTap: openLinkOnError,
+            color: Colors.transparent,
+            borderRadius: 15,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 25),
+              child: Column(
+                children: [
+                  TextFont(
+                    fontSize: 18,
+                    text: "failed-to-preview-image".tr(),
+                    textAlign: TextAlign.center,
+                    maxLines: 4,
+                  ),
+                  SizedBox(height: 15),
+                  LowKeyButton(onTap: openLinkOnError, text: "open-link".tr()),
+                ],
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -4127,12 +4276,14 @@ class _TransactionNotesTextInputState extends State<TransactionNotesTextInput> {
           ),
           HorizontalBreak(
             padding: EdgeInsets.zero,
-            color: dynamicPastel(
-              context,
-              Theme.of(context).colorScheme.secondaryContainer,
-              amount: 0.1,
-              inverse: true,
-            ),
+            color: appStateSettings["materialYou"]
+                ? dynamicPastel(
+                    context,
+                    Theme.of(context).colorScheme.secondaryContainer,
+                    amount: 0.1,
+                    inverse: true,
+                  )
+                : getColor(context, "lightDarkAccent"),
           ),
           LinkInNotes(
             color: (appStateSettings["materialYou"]
@@ -4180,7 +4331,8 @@ class _TransactionNotesTextInputState extends State<TransactionNotesTextInput> {
                                         true) {
                                       String? result = await getPhotoAndUpload(
                                           source: ImageSource.camera);
-                                      addAttachmentLinkToNote(result);
+                                      if (result != null)
+                                        addAttachmentLinkToNote(result);
                                     }
                                   },
                                 ),
@@ -4267,37 +4419,89 @@ class _TransactionNotesTextInputState extends State<TransactionNotesTextInput> {
                           onLongPress: () {
                             copyToClipboard(link);
                           },
-                          onTap: () {
+                          onTap: () async {
                             openUrl(link);
                           },
-                          extraWidget: Padding(
-                            padding: const EdgeInsets.only(right: 11, left: 5),
-                            child: IconButtonScaled(
-                              iconData: appStateSettings["outlinedIcons"]
-                                  ? Icons.remove_outlined
-                                  : Icons.remove_rounded,
-                              iconSize: 16,
-                              scale: 1.6,
-                              onTap: () {
-                                openPopup(
-                                  context,
-                                  icon: appStateSettings["outlinedIcons"]
-                                      ? Icons.link_off_outlined
-                                      : Icons.link_off_rounded,
-                                  title: "remove-link-question".tr(),
-                                  description: "remove-link-description".tr(),
-                                  onCancel: () {
-                                    Navigator.pop(context);
+                          extraWidget: Row(
+                            children: [
+                              if (link.contains("drive.google.com"))
+                                Padding(
+                                  padding:
+                                      const EdgeInsets.only(right: 3, left: 5),
+                                  child: IconButtonScaled(
+                                    iconData: appStateSettings["outlinedIcons"]
+                                        ? Icons.photo_outlined
+                                        : Icons.photo_rounded,
+                                    iconSize: 16,
+                                    scale: 1.6,
+                                    onTap: () async {
+                                      List<int>? result =
+                                          await getGoogleDriveFileImageData(
+                                              link);
+                                      if (result == null) {
+                                        openUrl(link);
+                                      } else {
+                                        openBottomSheet(
+                                          context,
+                                          PopupFramework(
+                                            child: ClipRRect(
+                                              borderRadius:
+                                                  BorderRadius.circular(
+                                                      getPlatform() ==
+                                                              PlatformOS.isIOS
+                                                          ? 10
+                                                          : 15),
+                                              child: RenderImageData(
+                                                imageData: result,
+                                                openLinkOnError: () {
+                                                  openUrl(link);
+                                                },
+                                              ),
+                                            ),
+                                          ),
+                                        );
+                                        // Update the size of the bottom sheet
+                                        Future.delayed(
+                                            Duration(milliseconds: 300), () {
+                                          bottomSheetControllerGlobal
+                                              .snapToExtent(0);
+                                        });
+                                      }
+                                    },
+                                  ),
+                                ),
+                              Padding(
+                                padding:
+                                    const EdgeInsets.only(right: 11, left: 5),
+                                child: IconButtonScaled(
+                                  iconData: appStateSettings["outlinedIcons"]
+                                      ? Icons.remove_outlined
+                                      : Icons.remove_rounded,
+                                  iconSize: 16,
+                                  scale: 1.6,
+                                  onTap: () {
+                                    openPopup(
+                                      context,
+                                      icon: appStateSettings["outlinedIcons"]
+                                          ? Icons.link_off_outlined
+                                          : Icons.link_off_rounded,
+                                      title: "remove-link-question".tr(),
+                                      description:
+                                          "remove-link-description".tr(),
+                                      onCancel: () {
+                                        Navigator.pop(context);
+                                      },
+                                      onCancelLabel: "cancel".tr(),
+                                      onSubmit: () {
+                                        removeLinkFromNote(link);
+                                        Navigator.pop(context);
+                                      },
+                                      onSubmitLabel: "remove".tr(),
+                                    );
                                   },
-                                  onCancelLabel: "cancel".tr(),
-                                  onSubmit: () {
-                                    removeLinkFromNote(link);
-                                    Navigator.pop(context);
-                                  },
-                                  onSubmitLabel: "remove".tr(),
-                                );
-                              },
-                            ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                     ],
@@ -4319,6 +4523,7 @@ Future<void> selectPeriodLength({
     PopupFramework(
       title: "enter-period-length".tr(),
       child: SelectAmountValue(
+        enableDecimal: false,
         amountPassed: selectedPeriodLength.toString(),
         setSelectedAmount: (amount, _) {
           setSelectedPeriodLength(amount);
@@ -4326,7 +4531,7 @@ Future<void> selectPeriodLength({
         next: () async {
           Navigator.pop(context);
         },
-        nextLabel: "set-amount".tr(),
+        nextLabel: "set-period-length".tr(),
       ),
     ),
   );
@@ -4456,10 +4661,31 @@ class SelectSubcategoryChips extends StatelessWidget {
                               ),
                               amount: 0.3,
                             ),
-                            amount: 0.5,
-                          ).withOpacity(0.7);
+                            amountDark: 0.55,
+                            amountLight: 0.3,
+                          ).withOpacity(
+                            Theme.of(context).brightness == Brightness.light
+                                ? 0.8
+                                : 1,
+                          );
                         },
                         getCustomBorderColor: (TransactionCategory category) {
+                          if (selectedSubCategoryPk == category.categoryPk)
+                            return lightenPastel(
+                              HexColor(
+                                category.colour,
+                                defaultColor:
+                                    Theme.of(context).colorScheme.primary,
+                              ),
+                              amount: Theme.of(context).brightness ==
+                                      Brightness.light
+                                  ? 0.8
+                                  : 0.4,
+                            ).withOpacity(
+                              Theme.of(context).brightness == Brightness.light
+                                  ? 0.8
+                                  : 0.65,
+                            );
                           return dynamicPastel(
                             context,
                             lightenPastel(
@@ -4471,6 +4697,10 @@ class SelectSubcategoryChips extends StatelessWidget {
                               amount: 0.3,
                             ),
                             amount: 0.4,
+                          ).withOpacity(
+                            Theme.of(context).brightness == Brightness.light
+                                ? 0.5
+                                : 0.7,
                           );
                         },
                         getLabel: (TransactionCategory category) {
@@ -4513,7 +4743,7 @@ List<dynamic>
   List<dynamic> defaultList = [
     null,
     ...TransactionSpecialType.values,
-    "installments"
+    //"installments"
   ];
   if (isAddedToLoanObjective)
     return [
@@ -4547,27 +4777,83 @@ List<dynamic>
 class TitleInput extends StatefulWidget {
   const TitleInput({
     required this.setSelectedTitle,
-    required this.titleInputController,
+    this.titleInputController,
+    this.titleInputScrollController,
     required this.setSelectedCategory,
     required this.setSelectedSubCategory,
+    this.padding = const EdgeInsets.symmetric(horizontal: 22),
+    this.alsoSearchCategories = true,
+    this.onNewRecommendedTitle,
+    this.onRecommendedTitleTapped,
+    this.handleOnRecommendedTitleTapped = true,
+    this.unfocusWhenRecommendedTapped = true,
+    this.onSubmitted,
+    this.autoFocus,
+    this.showCategoryIconForRecommendedTitles = true,
+    this.labelText,
+    this.textToSearchFilter,
+    this.getTextToExclude,
+    this.onDeleteButton,
+    this.tryToCompleteSearch = false,
+    this.resizePopupWhenChanged = false,
+    this.focusNode,
+    this.clearWhenUnfocused = false,
     super.key,
   });
   final Function(String title) setSelectedTitle;
-  final TextEditingController titleInputController;
+  final TextEditingController? titleInputController;
+  final ScrollController? titleInputScrollController;
   final Function(TransactionCategory category) setSelectedCategory;
   final Function(TransactionCategory category) setSelectedSubCategory;
+  final EdgeInsets padding;
+  final bool alsoSearchCategories;
+  final VoidCallback? onNewRecommendedTitle;
+  final Function(TransactionAssociatedTitleWithCategory)?
+      onRecommendedTitleTapped;
+  final bool handleOnRecommendedTitleTapped;
+  final bool unfocusWhenRecommendedTapped;
+  final Function(String)? onSubmitted;
+  final bool? autoFocus;
+  final bool showCategoryIconForRecommendedTitles;
+  final String? labelText;
+  final String Function(String)? textToSearchFilter;
+  final List<String> Function(String)? getTextToExclude;
+  final VoidCallback? onDeleteButton;
+  final bool tryToCompleteSearch;
+  final bool resizePopupWhenChanged;
+  final FocusNode? focusNode;
+  final bool clearWhenUnfocused;
 
   @override
   State<TitleInput> createState() => _TitleInputState();
 }
 
 class _TitleInputState extends State<TitleInput> {
+  late TextEditingController _titleInputController;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.titleInputController == null) {
+      _titleInputController = new TextEditingController();
+    } else {
+      _titleInputController = widget.titleInputController!;
+    }
+  }
+
   List<TransactionAssociatedTitleWithCategory> foundAssociatedTitles = [];
+
+  void fixResizingPopup() {
+    Future.delayed(Duration(milliseconds: 100), () {
+      bottomSheetControllerGlobal.snapToExtent(1,
+          duration: Duration(milliseconds: 625));
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 22),
+      padding: widget.padding,
       child: ClipRRect(
         borderRadius:
             BorderRadius.circular(getPlatform() == PlatformOS.isIOS ? 8 : 15),
@@ -4575,29 +4861,53 @@ class _TitleInputState extends State<TitleInput> {
           children: [
             Focus(
               onFocusChange: (value) {
-                if (value == false)
+                if (value == false && widget.clearWhenUnfocused == true)
                   setState(() {
                     foundAssociatedTitles = [];
                   });
               },
               child: TextInput(
+                focusNode: widget.focusNode,
+                scrollController: widget.titleInputScrollController,
                 borderRadius: BorderRadius.zero,
                 padding: EdgeInsets.zero,
-                labelText: "title-placeholder".tr(),
+                labelText: widget.labelText ?? "title-placeholder".tr(),
                 icon: appStateSettings["outlinedIcons"]
                     ? Icons.title_outlined
                     : Icons.title_rounded,
-                controller: widget.titleInputController,
+                controller: _titleInputController,
                 onChanged: (text) async {
                   widget.setSelectedTitle(text);
-                  foundAssociatedTitles =
-                      await database.getSimilarAssociatedTitles(
-                    title: text,
-                    limit: enableDoubleColumn(context) ? 5 : 3,
-                  );
+                  List<TransactionAssociatedTitleWithCategory>
+                      newFoundAssociatedTitles = [];
+                  if (text.trim() != "") {
+                    newFoundAssociatedTitles =
+                        await database.getSimilarAssociatedTitles(
+                      title: widget.textToSearchFilter != null
+                          ? widget.textToSearchFilter!(text)
+                          : text,
+                      excludeTitles: widget.getTextToExclude != null
+                          ? widget.getTextToExclude!(text)
+                          : [],
+                      limit: enableDoubleColumn(context) ? 5 : 3,
+                      alsoSearchCategories: widget.alsoSearchCategories,
+                      tryToCompleteSearch: widget.tryToCompleteSearch,
+                    );
+                  }
+
+                  if (foundAssociatedTitles.toString() !=
+                      newFoundAssociatedTitles.toString()) {
+                    if (widget.resizePopupWhenChanged) fixResizingPopup();
+                    if (widget.onNewRecommendedTitle != null)
+                      widget.onNewRecommendedTitle!();
+                  }
+
+                  foundAssociatedTitles = newFoundAssociatedTitles;
                   setState(() {});
                 },
-                autoFocus: kIsWeb && getIsFullScreen(context),
+                onSubmitted: widget.onSubmitted,
+                autoFocus:
+                    widget.autoFocus ?? kIsWeb && getIsFullScreen(context),
               ),
             ),
             AnimatedSizeSwitcher(
@@ -4633,62 +4943,80 @@ class _TitleInputState extends State<TitleInput> {
                                 borderRadius: 0,
                                 color: Colors.transparent,
                                 onTap: () async {
-                                  if (foundAssociatedTitle
-                                          .category.mainCategoryPk !=
-                                      null) {
-                                    widget.setSelectedCategory(
-                                        await database.getCategoryInstance(
-                                            foundAssociatedTitle
-                                                .category.mainCategoryPk!));
-                                    widget.setSelectedSubCategory(
-                                        foundAssociatedTitle.category);
-                                  } else {
-                                    widget.setSelectedCategory(
-                                        foundAssociatedTitle.category);
-                                  }
+                                  if (widget.handleOnRecommendedTitleTapped) {
+                                    if (foundAssociatedTitle
+                                            .category.mainCategoryPk !=
+                                        null) {
+                                      widget.setSelectedCategory(
+                                          await database.getCategoryInstance(
+                                              foundAssociatedTitle
+                                                  .category.mainCategoryPk!));
+                                      widget.setSelectedSubCategory(
+                                          foundAssociatedTitle.category);
+                                    } else {
+                                      widget.setSelectedCategory(
+                                          foundAssociatedTitle.category);
+                                    }
 
-                                  if (foundAssociatedTitle.type !=
-                                          TitleType.CategoryName &&
-                                      foundAssociatedTitle.type !=
-                                          TitleType.SubCategoryName) {
-                                    widget.setSelectedTitle(
-                                        foundAssociatedTitle.title.title);
-                                    setTextInput(widget.titleInputController,
-                                        foundAssociatedTitle.title.title);
-                                  } else {
-                                    widget.setSelectedTitle("");
-                                    setTextInput(
-                                        widget.titleInputController, "");
+                                    if (foundAssociatedTitle.type !=
+                                            TitleType.CategoryName &&
+                                        foundAssociatedTitle.type !=
+                                            TitleType.SubCategoryName) {
+                                      widget.setSelectedTitle(
+                                          foundAssociatedTitle.title.title);
+                                      setTextInput(_titleInputController,
+                                          foundAssociatedTitle.title.title);
+                                    } else {
+                                      widget.setSelectedTitle("");
+                                      setTextInput(_titleInputController, "");
+                                    }
+
+                                    if (widget.unfocusWhenRecommendedTapped)
+                                      FocusScope.of(context).unfocus();
                                   }
 
                                   setState(() {
                                     foundAssociatedTitles = [];
                                   });
-                                  FocusScope.of(context).unfocus();
+
+                                  if (widget.onRecommendedTitleTapped != null)
+                                    widget.onRecommendedTitleTapped!(
+                                        foundAssociatedTitle);
+                                  if (widget.resizePopupWhenChanged)
+                                    fixResizingPopup();
                                 },
                                 child: Row(
                                   children: [
-                                    IgnorePointer(
-                                      child: CategoryIcon(
-                                        categoryPk: foundAssociatedTitle
-                                            .title.categoryFk,
-                                        size: 23,
-                                        margin: EdgeInsets.zero,
-                                        sizePadding: 16,
-                                        borderRadius: 0,
+                                    if (widget
+                                        .showCategoryIconForRecommendedTitles)
+                                      IgnorePointer(
+                                        child: CategoryIcon(
+                                          categoryPk: foundAssociatedTitle
+                                              .title.categoryFk,
+                                          size: 23,
+                                          margin: EdgeInsets.zero,
+                                          sizePadding: 16,
+                                          borderRadius: 0,
+                                        ),
                                       ),
-                                    ),
                                     SizedBox(width: 13),
                                     Expanded(
-                                        child: TextFont(
-                                      text: "",
-                                      richTextSpan: generateSpans(
-                                        context: context,
-                                        fontSize: 16,
-                                        mainText:
-                                            foundAssociatedTitle.title.title,
-                                        boldedText: foundAssociatedTitle
-                                            .partialTitleString,
+                                        child: Padding(
+                                      padding: widget
+                                              .showCategoryIconForRecommendedTitles
+                                          ? EdgeInsets.zero
+                                          : const EdgeInsets.only(
+                                              bottom: 12, top: 11, left: 5),
+                                      child: TextFont(
+                                        text: "",
+                                        richTextSpan: generateSpans(
+                                          context: context,
+                                          fontSize: 16,
+                                          mainText:
+                                              foundAssociatedTitle.title.title,
+                                          boldedText: foundAssociatedTitle
+                                              .partialTitleString,
+                                        ),
                                       ),
                                     )),
                                     Opacity(
@@ -4717,7 +5045,15 @@ class _TitleInputState extends State<TitleInput> {
                                               iconSize: 18,
                                               scale: 1.1,
                                               onTap: () async {
-                                                await deleteAssociatedTitlePopup(
+                                                if (widget.onDeleteButton !=
+                                                    null)
+                                                  widget.onDeleteButton!();
+                                                if (widget
+                                                    .resizePopupWhenChanged)
+                                                  fixResizingPopup();
+
+                                                DeletePopupAction? action =
+                                                    await deleteAssociatedTitlePopup(
                                                   context,
                                                   title: foundAssociatedTitle
                                                       .title,
@@ -4725,6 +5061,12 @@ class _TitleInputState extends State<TitleInput> {
                                                       RoutesToPopAfterDelete
                                                           .None,
                                                 );
+                                                if (action ==
+                                                    DeletePopupAction.Delete) {
+                                                  foundAssociatedTitles.remove(
+                                                      foundAssociatedTitle);
+                                                  setState(() {});
+                                                }
                                               },
                                             ),
                                     ),

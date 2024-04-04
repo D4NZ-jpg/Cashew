@@ -265,6 +265,7 @@ class _CyclePeriodSelectionState extends State<CyclePeriodSelection> {
       PopupFramework(
         title: "enter-period-length".tr(),
         child: SelectAmountValue(
+          enableDecimal: false,
           amountPassed: selectedPeriodLength.toString(),
           setSelectedAmount: (amount, _) {
             setSelectedPeriodLength(amount);
@@ -272,7 +273,7 @@ class _CyclePeriodSelectionState extends State<CyclePeriodSelection> {
           next: () async {
             Navigator.pop(context);
           },
-          nextLabel: "set-amount".tr(),
+          nextLabel: "set-period-length".tr(),
         ),
       ),
     );
@@ -647,7 +648,7 @@ String getLabelOfSelectedCustomPeriod(String cycleSettingsExtension) {
         getEndDateOfSelectedCustomPeriod(cycleSettingsExtension);
     return getWordedDateShort(startDate) +
         (endDate == null
-            ? " " + "until-forever".tr().toLowerCase()
+            ? " " + "onwards".tr().toLowerCase()
             : (" – " + getWordedDateShort(endDate)));
   }
   return "";
@@ -677,6 +678,7 @@ class _PastDaysSelectionState extends State<PastDaysSelection> {
       PopupFramework(
         title: "enter-period-length".tr(),
         child: SelectAmountValue(
+          enableDecimal: false,
           amountPassed: selectedPeriodLength.toString(),
           setSelectedAmount: (amount, _) {
             setSelectedPeriodLength(amount);
@@ -684,7 +686,7 @@ class _PastDaysSelectionState extends State<PastDaysSelection> {
           next: () async {
             Navigator.pop(context);
           },
-          nextLabel: "set-amount".tr(),
+          nextLabel: "set-period-length".tr(),
         ),
       ),
     );

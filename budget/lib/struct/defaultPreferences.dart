@@ -4,8 +4,11 @@ import 'package:budget/functions.dart';
 import 'package:budget/main.dart';
 import 'package:budget/pages/homePage/homePageLineGraph.dart';
 import 'package:budget/pages/walletDetailsPage.dart';
+import 'package:budget/struct/databaseGlobal.dart';
+import 'package:budget/struct/settings.dart';
 import 'package:budget/widgets/notificationsSettings.dart';
 import 'package:budget/widgets/periodCyclePicker.dart';
+import 'package:drift/drift.dart' show Value;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:device_info_plus/device_info_plus.dart';
@@ -22,13 +25,20 @@ Future<Map<String, dynamic>> getDefaultPreferences() async {
     "numBackups": 1,
     "theme": "system", //system, light, dark
     "use24HourFormat": "system", //system, 12-hour, 24-hour
+    "numberCountUpAnimation": true,
     "selectedWalletPk": "0",
     "selectedSubscriptionType": 0,
     "accentColor": toHexString(Color(0xFF1B447A)),
     "accentSystemColor": await systemColorByDefault(),
     "widgetOpacity": 1,
     "widgetTheme": "system", //system, light, dark
+    "nonCompactTransactions":
+        false, //still in testing, declares a new transaction layout to show more information in lists
+    "circularProgressRotation":
+        false, // still in testing, offsets the circular progress to align with pie chart sections
+    "forceFullDarkBackground": false,
     // FullScreen is added if the section has its own preference when full screen (double column)
+    "futureTransactionDaysHomePage": 4,
     "showWalletSwitcher": true,
     "showWalletSwitcherFullScreen": true,
     "showWalletList": false,
@@ -143,7 +153,8 @@ Future<Map<String, dynamic>> getDefaultPreferences() async {
     "lineGraphReferenceBudgetPk": null,
     "lineGraphDisplayType": LineGraphDisplay.Default30Days.index,
     "lineGraphStartDate": DateTime.now().toString(),
-    "pieChartTotal": "all", // all, outgoing, incoming
+    "pieChartTotal": "outgoing", // "outgoing", "incoming"
+    "pieChartIncomeAndExpenseOnly": true,
     "netWorthAllWallets": true,
     "walletsListCurrencyBreakdown": false,
     "allSpendingSummaryAllWallets": true,
@@ -164,7 +175,6 @@ Future<Map<String, dynamic>> getDefaultPreferences() async {
     "showAllSubcategories": true,
     // Should be of type Map<String, double>
     "customCurrencyAmounts": {},
-    "iOSNavigation": false,
     "iOSEmulate": false,
     "iOSAnimatedGoo": false,
     "expandedNavigationSidebar": true,
@@ -184,10 +194,15 @@ Future<Map<String, dynamic>> getDefaultPreferences() async {
     "allSpendingSetFiltersString": null,
     "transactionsListPageSetFiltersString": null,
     "increaseTextContrast": false,
-    "numberFormatLocale": null,
+    "customNumberFormat": false,
+    "numberFormatDelimiter": ",",
+    "numberFormatDecimal": ".",
+    "numberFormatCurrencyFirst": true,
+    "shortNumberFormat": null, //null, compact
     "netAllSpendingTotal": false,
     "netSpendingDayTotal": false,
     "extraZerosButton": null, //will be null, 00 or 000
+    "percentagePrecision": 0, //number of decimals to round percentages to
     "allSpendingLastPage": 0, //index of the last tab on the all spending page
     "loansLastPage": 0, //index of the last tab on the loans page
     // "loansUseDifferenceInsteadOfTotalGoal": false,
@@ -289,11 +304,68 @@ Future<Map<String, dynamic>> getDefaultPreferences() async {
     // The last synced button is there though!
     // "webForceLoginPopupOnLaunch": true,
     //
+
+    // This key is used as a migration
+    // "migratedSetLongTermLoansAmountTo0": false,
   };
 }
 
-dynamic attemptToMigrateCyclePreferences(
-    dynamic currentUserSettings, String key) {
+Future attemptToMigrateSetLongTermLoansAmountTo0() async {
+  try {
+    if (appStateSettings["hasOnboarded"] == true &&
+        appStateSettings["migratedSetLongTermLoansAmountTo0"] != true) {
+      print("Migrating setting long term loans amounts to 0");
+      appStateSettings["migratedSetLongTermLoansAmountTo0"] = true;
+      List<Objective> objectivesInserting = [];
+      List<Objective> allObjectives =
+          await database.getAllObjectives(objectiveType: ObjectiveType.loan);
+      for (Objective objective in allObjectives) {
+        objectivesInserting.add(objective.copyWith(
+            amount: 0, dateTimeModified: Value(DateTime.now())));
+      }
+      await database.updateBatchObjectivesOnly(objectivesInserting);
+    }
+  } catch (e) {
+    print(
+        "Error migrating setting long term loans amounts to 0 " + e.toString());
+  }
+}
+
+attemptToMigrateCustomNumberFormattingSettings() {
+  try {
+    if (appStateSettings["numberFormatLocale"] != null) {
+      if (appStateSettings["numberFormatLocale"] == "en") {
+        appStateSettings["numberFormatDelimiter"] = ",";
+        appStateSettings["numberFormatDecimal"] = ".";
+        appStateSettings["numberFormatCurrencyFirst"] = true;
+      } else if (appStateSettings["numberFormatLocale"] == "tr") {
+        appStateSettings["numberFormatDelimiter"] = ".";
+        appStateSettings["numberFormatDecimal"] = ",";
+        appStateSettings["numberFormatCurrencyFirst"] = true;
+      } else if (appStateSettings["numberFormatLocale"] == "af") {
+        appStateSettings["numberFormatDelimiter"] = " ";
+        appStateSettings["numberFormatDecimal"] = ",";
+        appStateSettings["numberFormatCurrencyFirst"] = true;
+      } else if (appStateSettings["numberFormatLocale"] == "de") {
+        appStateSettings["numberFormatDelimiter"] = ".";
+        appStateSettings["numberFormatDecimal"] = ",";
+        appStateSettings["numberFormatCurrencyFirst"] = false;
+      } else if (appStateSettings["numberFormatLocale"] == "fr") {
+        appStateSettings["numberFormatDelimiter"] = " ";
+        appStateSettings["numberFormatDecimal"] = ",";
+        appStateSettings["numberFormatCurrencyFirst"] = false;
+      }
+      appStateSettings["customNumberFormat"] = true;
+      appStateSettings["numberFormatLocale"] = null;
+    }
+  } catch (e) {
+    print(
+        "Error migrating setting long term loans amounts to 0 " + e.toString());
+  }
+}
+
+Map<String, dynamic> attemptToMigrateCyclePreferences(
+    Map<String, dynamic> currentUserSettings, String key) {
   try {
     if (
         // This is a setting we need to find a value for

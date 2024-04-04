@@ -25,7 +25,7 @@ class ResumeTextFieldFocus extends StatelessWidget {
   final Widget child;
   @override
   Widget build(BuildContext context) {
-    if (getPlatform() == PlatformOS.isAndroid) {
+    if (getPlatform(ignoreEmulation: true) == PlatformOS.isAndroid) {
       return Focus(
         onFocusChange: (value) {
           if (value == false &&
@@ -33,7 +33,8 @@ class ResumeTextFieldFocus extends StatelessWidget {
             Future.delayed(Duration(milliseconds: 50), () {
               _currentTextInputFocus = FocusScope.of(context).focusedChild;
             });
-          } else if (appLifecycleState == AppLifecycleState.resumed) {
+          } else if (value == true &&
+              appLifecycleState == AppLifecycleState.resumed) {
             _currentTextInputFocus = FocusScope.of(context).focusedChild;
           }
 
@@ -43,17 +44,14 @@ class ResumeTextFieldFocus extends StatelessWidget {
         },
         child: OnAppResume(
           onAppResume: () {
-            if (shouldAutoRefocus) {
+            if (shouldAutoRefocus && _currentTextInputFocus != null) {
               _currentTextInputFocus?.unfocus();
-              Future.delayed(Duration(milliseconds: 5), () {
+              // 30 milliseconds seems optimal
+              // Especially when app is resuming back from an inactive state (notification panel opened and then closed)
+              Future.delayed(Duration(milliseconds: 30), () {
                 _currentTextInputFocus?.requestFocus();
                 shouldAutoRefocus = true;
               });
-            }
-          },
-          onAppInactive: () {
-            if (shouldAutoRefocus) {
-              _currentTextInputFocus = FocusScope.of(context).focusedChild;
             }
           },
           child: child,
@@ -86,6 +84,7 @@ class TextInput extends StatelessWidget {
   final String? suffix;
   final double paddingRight;
   final FocusNode? focusNode;
+  final ScrollController? scrollController;
   final bool? bubbly;
   final Color? backgroundColor;
   final TextInputType? keyboardType;
@@ -98,6 +97,7 @@ class TextInput extends StatelessWidget {
   final List<TextInputFormatter>? inputFormatters;
   final TextAlign textAlign;
   final bool autocorrect;
+  final int? maxLength;
 
   const TextInput({
     Key? key,
@@ -121,6 +121,7 @@ class TextInput extends StatelessWidget {
     this.suffix,
     this.paddingRight = 12,
     this.focusNode,
+    this.scrollController,
     this.bubbly = true,
     this.backgroundColor,
     this.keyboardType,
@@ -133,6 +134,7 @@ class TextInput extends StatelessWidget {
     this.inputFormatters,
     this.textAlign = TextAlign.start,
     this.autocorrect = true,
+    this.maxLength,
   }) : super(key: key);
 
   @override
@@ -154,6 +156,8 @@ class TextInput extends StatelessWidget {
           ),
           child: Center(
             child: TextFormField(
+              scrollController: scrollController,
+              maxLength: maxLength,
               inputFormatters: inputFormatters,
               textInputAction: textInputAction,
               textCapitalization:
@@ -196,6 +200,7 @@ class TextInput extends StatelessWidget {
                   context, HexColor(appStateSettings["accentColor"]),
                   amount: 0.1, inverse: true),
               decoration: new InputDecoration(
+                counterText: "",
                 hintStyle: TextStyle(color: getColor(context, "textLight")),
                 alignLabelWithHint: true,
                 prefix: prefix != null ? TextFont(text: prefix ?? "") : null,

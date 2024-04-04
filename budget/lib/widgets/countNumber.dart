@@ -119,6 +119,12 @@ class _CountNumberState extends State<CountNumber> {
 
   @override
   Widget build(BuildContext context) {
+    if (appStateSettings["numberCountUpAnimation"] == false ||
+        appStateSettings["batterySaver"] == true) {
+      previousAmount = widget.count;
+      return widget.textBuilder(widget.count);
+    }
+
     int decimals = 0;
 
     if (isWholeNumber(double.parse(widget.count.toStringAsFixed(
@@ -133,16 +139,16 @@ class _CountNumberState extends State<CountNumber> {
               .indexedByPk[appStateSettings["selectedWalletPk"]]
               ?.decimals ??
           2;
-      decimals = ((widget.decimals ?? currentSelectedDecimals) > 2
-          ? widget.count.toString().split('.')[1].length <
-                  (widget.decimals ?? currentSelectedDecimals)
-              ? widget.count.toString().split('.')[1].length
-              : (widget.decimals ?? currentSelectedDecimals)
-          : (widget.decimals ?? currentSelectedDecimals));
-    }
-
-    if (appStateSettings["batterySaver"]) {
-      return widget.textBuilder(widget.count);
+      if (widget.count.toString().contains('.')) {
+        decimals = ((widget.decimals ?? currentSelectedDecimals) > 2
+            ? widget.count.toString().split('.')[1].length <
+                    (widget.decimals ?? currentSelectedDecimals)
+                ? widget.count.toString().split('.')[1].length
+                : (widget.decimals ?? currentSelectedDecimals)
+            : (widget.decimals ?? currentSelectedDecimals));
+      } else {
+        decimals = (widget.decimals ?? currentSelectedDecimals);
+      }
     }
 
     if (lazyFirstRender && widget.initialCount == widget.count) {

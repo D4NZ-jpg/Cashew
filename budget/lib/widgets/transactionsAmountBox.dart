@@ -1,6 +1,7 @@
 import 'package:budget/colors.dart';
 import 'package:budget/database/tables.dart';
 import 'package:budget/functions.dart';
+import 'package:budget/pages/upcomingOverdueTransactionsPage.dart';
 import 'package:budget/widgets/openContainerNavigation.dart';
 import 'package:budget/widgets/tappable.dart';
 import 'package:budget/widgets/textWidgets.dart';
@@ -19,8 +20,10 @@ class TransactionsAmountBox extends StatelessWidget {
     this.onLongPress,
     required this.label,
     required this.totalWithCountStream,
+    this.totalWithCountStream2,
     required this.textColor,
     this.absolute = true,
+    this.invertSign = false,
     this.getTextColor,
     this.currencyKey,
     super.key,
@@ -29,8 +32,10 @@ class TransactionsAmountBox extends StatelessWidget {
   final Function? onLongPress;
   final String label;
   final Stream<TotalWithCount?> totalWithCountStream;
+  final Stream<TotalWithCount?>? totalWithCountStream2;
   final Color textColor;
   final bool absolute;
+  final bool invertSign;
   final String? currencyKey;
   final Function(double)? getTextColor;
 
@@ -66,20 +71,22 @@ class TransactionsAmountBox extends StatelessWidget {
                       fontWeight: FontWeight.bold,
                     ),
                     SizedBox(height: 6),
-                    StreamBuilder<TotalWithCount?>(
-                      stream: totalWithCountStream,
+                    DoubleTotalWithCountStreamBuilder(
+                      totalWithCountStream: totalWithCountStream,
+                      totalWithCountStream2: totalWithCountStream2,
                       builder: (context, snapshot) {
                         double totalSpent = snapshot.data?.total ?? 0;
                         int totalCount = snapshot.data?.count ?? 0;
+                        double finalAmount = snapshot.hasData == false ||
+                                snapshot.data == null
+                            ? 0
+                            : absolute == true
+                                ? (totalSpent).abs()
+                                : totalSpent * (invertSign == true ? -1 : 1);
                         return Column(
                           children: [
                             CountNumber(
-                              count: snapshot.hasData == false ||
-                                      snapshot.data == null
-                                  ? 0
-                                  : absolute == true
-                                      ? (totalSpent).abs()
-                                      : (totalSpent),
+                              count: finalAmount,
                               duration: Duration(milliseconds: 1000),
                               initialCount: (0),
                               textBuilder: (number) {
@@ -88,12 +95,7 @@ class TransactionsAmountBox extends StatelessWidget {
                                       Provider.of<AllWallets>(context), number,
                                       currencyKey: currencyKey,
                                       addCurrencyName: currencyKey != null,
-                                      finalNumber: snapshot.hasData == false ||
-                                              snapshot.data == null
-                                          ? 0
-                                          : absolute == true
-                                              ? (totalSpent).abs()
-                                              : (totalSpent)),
+                                      finalNumber: finalAmount),
                                   textColor: getTextColor != null
                                       ? getTextColor!(totalSpent)
                                       : textColor,

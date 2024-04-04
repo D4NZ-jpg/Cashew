@@ -95,6 +95,14 @@ GlobalKey<BudgetsListPageState> budgetsListPageStateKey = GlobalKey();
 GlobalKey<MoreActionsPageState> settingsPageStateKey = GlobalKey();
 GlobalKey<SettingsPageFrameworkState> settingsPageFrameworkStateKey =
     GlobalKey();
+GlobalKey<SubscriptionsPageState> subscriptionsPageStateKey = GlobalKey();
+GlobalKey<WalletDetailsPageState> walletDetailsAllSpendingPageStateKey =
+    GlobalKey();
+GlobalKey<ObjectivesListPageState> objectivesListPageStateKey = GlobalKey();
+GlobalKey<UpcomingOverdueTransactionsState>
+    upcomingOverdueTransactionsStateKey = GlobalKey();
+GlobalKey<CreditDebtTransactionsState> creditDebtTransactionsKey = GlobalKey();
+GlobalKey<ProductsState> purchasesStateKey = GlobalKey();
 GlobalKey<AccountsPageState> accountsPageStateKey = GlobalKey();
 GlobalKey<BottomNavBarState> navbarStateKey = GlobalKey();
 GlobalKey<NavigationSidebarState> sidebarStateKey = GlobalKey();
@@ -197,6 +205,7 @@ class PageNavigationFrameworkState extends State<PageNavigationFramework> {
       await initializeDefaultDatabase();
       runNotificationPayLoads(context);
       runQuickActionsPayLoads(context);
+      initializeLocalizedMonthNames();
 
       if (entireAppLoaded == false) {
         await runAllCloudFunctions(context);
@@ -250,19 +259,24 @@ class PageNavigationFrameworkState extends State<PageNavigationFramework> {
     ];
     pagesExtended = [
       MoreActionsPage(), //4
-      SubscriptionsPage(), //5
+      SubscriptionsPage(key: subscriptionsPageStateKey), //5
       NotificationsPage(), //6
-      WalletDetailsPage(wallet: null), //7
+      WalletDetailsPage(
+          key: walletDetailsAllSpendingPageStateKey, wallet: null), //7
       AccountsPage(key: accountsPageStateKey), // 8
       EditWalletsPage(), //9
       EditBudgetPage(), //10
       EditCategoriesPage(), //11
       EditAssociatedTitlesPage(), //12
       AboutPage(), //13
-      ObjectivesListPage(backButton: false), //14
+      ObjectivesListPage(
+          key: objectivesListPageStateKey, backButton: false), //14
       EditObjectivesPage(objectiveType: ObjectiveType.goal), //15
-      UpcomingOverdueTransactions(overdueTransactions: null), //16
-      CreditDebtTransactions(isCredit: null), //17
+      UpcomingOverdueTransactions(
+          key: upcomingOverdueTransactionsStateKey,
+          overdueTransactions: null), //16
+      CreditDebtTransactions(
+          key: creditDebtTransactionsKey, isCredit: null), //17
     ];
 
     // SchedulerBinding.instance.addPostFrameCallback((Duration duration) {
@@ -416,7 +430,7 @@ class PageNavigationFrameworkState extends State<PageNavigationFramework> {
                 // ),
                 AnimateFAB(
                   key: ValueKey(1),
-                  fab: FAB(
+                  fab: AddFAB(
                     tooltip: "add-transaction".tr(),
                     openPage: AddTransactionPage(
                       routesToPopAfterDelete: RoutesToPopAfterDelete.None,

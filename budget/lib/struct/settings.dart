@@ -79,6 +79,9 @@ Future<bool> initializeSettings() async {
     appStateSettings["accentColor"] = await getAccentColorSystemString();
   }
 
+  await attemptToMigrateSetLongTermLoansAmountTo0();
+  attemptToMigrateCustomNumberFormattingSettings();
+
   // Disable sync every change is not on web
   // It will still sync when user pulls down to refresh
   // if (!kIsWeb) {
@@ -190,6 +193,7 @@ Map<String, dynamic> getSettingConstants(Map<String, dynamic> userSettings) {
     "system": ThemeMode.system,
     "light": ThemeMode.light,
     "dark": ThemeMode.dark,
+    "black": ThemeMode.dark,
   };
 
   Map<String, dynamic> userSettingsNew = {...userSettings};
@@ -208,7 +212,8 @@ Future<Map<String, dynamic>> getUserSettings() async {
     }
     print("Found user settings on file");
 
-    var userSettingsJSON = json.decode(userSettings);
+    Map<String, dynamic> userSettingsJSON = json.decode(userSettings);
+
     //Set to defaults if a new setting is added, but no entry saved
     userPreferencesDefault.forEach((key, value) {
       userSettingsJSON =
@@ -219,7 +224,7 @@ Future<Map<String, dynamic>> getUserSettings() async {
     });
     return userSettingsJSON;
   } catch (e) {
-    print("There was an error, settings corrupted");
+    print("There was an error, settings corrupted: " + e.toString());
     await sharedPreferences.setString(
         'userSettings', json.encode(userPreferencesDefault));
     return userPreferencesDefault;
@@ -270,6 +275,7 @@ void openLanguagePicker(BuildContext context) {
                 updateGlobalState: false,
               );
               await Future.delayed(Duration(milliseconds: 50));
+              initializeLocalizedMonthNames();
               Navigator.pop(context);
             },
           ),

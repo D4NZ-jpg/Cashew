@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:budget/database/tables.dart';
 import 'package:budget/main.dart';
 import 'package:budget/pages/subscriptionsPage.dart';
@@ -14,6 +16,7 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_displaymode/flutter_displaymode.dart';
+import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import './colors.dart';
 import 'package:flutter/material.dart';
@@ -60,48 +63,61 @@ extension DateUtils on DateTime {
 }
 
 String convertToPercent(double amount,
-    {double? finalNumber, int? numberDecimals, bool useLessThanZero = false}) {
+    {double? finalNumber,
+    int? numberDecimals,
+    bool useLessThanZero = false,
+    bool shouldRemoveTrailingZeroes = false}) {
   amount = absoluteZero(amount);
   finalNumber = absoluteZeroNull(finalNumber);
 
+  if (amount == 0 || finalNumber == 0) return "0%";
+
   int numberDecimalsGet = numberDecimals != null
       ? numberDecimals
-      : finalNumber == null
-          ? getDecimalPlaces(amount) > 2
-              ? 2
-              : getDecimalPlaces(amount)
-          : getDecimalPlaces(finalNumber) > 2
-              ? 2
-              : getDecimalPlaces(finalNumber);
+      : (int.tryParse(appStateSettings["percentagePrecision"].toString()) ?? 0);
 
   String roundedAmount = amount.toStringAsFixed(numberDecimalsGet);
+
+  if (shouldRemoveTrailingZeroes) {
+    if (finalNumber != null) {
+      int finalTrailingZeroes = countNonTrailingZeroes(
+          finalNumber.toStringAsFixed(numberDecimalsGet));
+      roundedAmount = finalNumber
+          .toStringAsFixed(max(finalTrailingZeroes, numberDecimalsGet));
+    } else {
+      roundedAmount = removeTrailingZeroes(roundedAmount);
+    }
+  }
+
   if (useLessThanZero &&
       roundedAmount == "0" &&
       (finalNumber == null && amount.abs() != 0 ||
           finalNumber != null && finalNumber.abs() != 0)) {
-    if (finalNumber == null && amount < 0 ||
-        finalNumber != null && finalNumber < 0) {
-      roundedAmount = "< -1";
-    } else {
-      roundedAmount = "< 1";
+    if (numberDecimalsGet == 0) {
+      if (finalNumber == null && amount < 0 ||
+          finalNumber != null && finalNumber < 0) {
+        roundedAmount = "< -1";
+      } else {
+        roundedAmount = "< 1";
+      }
+    } else if (numberDecimalsGet == 1) {
+      if (finalNumber == null && amount < 0.1 ||
+          finalNumber != null && finalNumber < 0.1) {
+        roundedAmount = "< -0.1";
+      } else {
+        roundedAmount = "< 0.1";
+      }
+    } else if (numberDecimalsGet == 2) {
+      if (finalNumber == null && amount < 0.01 ||
+          finalNumber != null && finalNumber < 0.01) {
+        roundedAmount = "< -0.01";
+      } else {
+        roundedAmount = "< 0.01";
+      }
     }
   }
 
-  return roundedAmount + "%";
-}
-
-int getDecimalPlaces(double number) {
-  final decimalString = number.toString();
-  final decimalIndex = decimalString.indexOf('.');
-
-  if (decimalIndex == -1) {
-    return 0;
-  } else {
-    final decimalPlaces = decimalString.length - decimalIndex - 1;
-    final trailingZeros =
-        decimalString.substring(decimalIndex + 1).replaceAll('0', '');
-    return trailingZeros.isEmpty ? 0 : decimalPlaces;
-  }
+  return absoluteZeroString(roundedAmount) + "%";
 }
 
 String removeLastCharacter(String text) {
@@ -141,17 +157,22 @@ bool hasDecimalPoints(double? value) {
   return false;
 }
 
-String convertToMoney(
-  AllWallets allWallets,
-  double amount, {
-  String? currencyKey,
-  double? finalNumber,
-  int? decimals,
-  bool? allDecimals,
-  bool? addCurrencyName,
-  bool forceAllDecimals = false,
-  String? customLocale,
-}) {
+String convertToMoney(AllWallets allWallets, double amount,
+    {String? currencyKey,
+    double? finalNumber,
+    int? decimals,
+    bool? allDecimals,
+    bool? addCurrencyName,
+    bool forceHideCurrencyName = false,
+    bool forceAllDecimals = false,
+    bool forceNonCustomNumberFormat = false,
+    bool forceCustomNumberFormat = false,
+    String? customSymbol,
+    String Function(String)? editFormattedOutput,
+    bool forceCompactNumberFormatter = false,
+    bool forceDefaultNumberFormatter = false,
+    NumberFormat Function(int? decimalDigits, String? locale, String? symbol)?
+        getCustomNumberFormat}) {
   int numberDecimals = decimals ??
       allWallets.indexedByPk[appStateSettings["selectedWalletPk"]]?.decimals ??
       2;
@@ -162,42 +183,91 @@ String convertToMoney(
           : numberDecimals
       : numberDecimals;
 
-  amount = absoluteZero(amount);
-
   if (amount == double.infinity || amount == double.negativeInfinity) {
     return "Infinity";
   }
   amount = double.parse(amount.toStringAsFixed(numberDecimals));
-  if (finalNumber != null)
+  amount = absoluteZero(amount);
+  if (finalNumber != null) {
     finalNumber = double.parse(finalNumber.toStringAsFixed(numberDecimals));
-  NumberFormat currency = NumberFormat.currency(
-    decimalDigits: forceAllDecimals
-        ? decimals
-        : allDecimals == true ||
-                hasDecimalPoints(finalNumber) ||
-                hasDecimalPoints(amount)
-            ? numberDecimals
-            : 0,
-    locale: customLocale ??
-        appStateSettings["numberFormatLocale"] ??
-        Platform.localeName,
-    symbol: getCurrencyString(allWallets, currencyKey: currencyKey),
-  );
+    finalNumber = absoluteZero(finalNumber);
+  }
+
+  int? decimalDigits = forceAllDecimals
+      ? decimals
+      : allDecimals == true ||
+              hasDecimalPoints(finalNumber) ||
+              hasDecimalPoints(amount)
+          ? numberDecimals
+          : 0;
+  String? locale = appStateSettings["customNumberFormat"] == true
+      ? "en-US"
+      : Platform.localeName;
+  String? symbol =
+      customSymbol ?? getCurrencyString(allWallets, currencyKey: currencyKey);
+
+  bool useCustomNumberFormat = forceCustomNumberFormat ||
+      (forceNonCustomNumberFormat == false &&
+          appStateSettings["customNumberFormat"] == true);
+
+  final NumberFormat formatter;
+  if (getCustomNumberFormat != null) {
+    formatter = getCustomNumberFormat(
+        decimalDigits, locale, useCustomNumberFormat ? "" : symbol);
+  } else if (forceDefaultNumberFormatter == false &&
+      (forceCompactNumberFormatter ||
+          appStateSettings["shortNumberFormat"] == "compact")) {
+    formatter = NumberFormat.compactCurrency(
+      locale: locale,
+      decimalDigits: decimalDigits,
+      symbol: useCustomNumberFormat ? "" : symbol,
+    );
+    formatter.significantDigitsInUse = false;
+  } else {
+    formatter = NumberFormat.currency(
+      decimalDigits: decimalDigits,
+      locale: locale,
+      symbol: useCustomNumberFormat ? "" : symbol,
+    );
+  }
+
+  // View the entire dictionary of locale formats, through NumberFormat.currency definition
+  // numberFormatSymbols[locale] as NumberSymbols
+
   // If there is no currency symbol, use the currency code
-  if (getCurrencyString(allWallets, currencyKey: currencyKey) == "") {
+  if (forceHideCurrencyName == false &&
+      getCurrencyString(allWallets, currencyKey: currencyKey) == "") {
     addCurrencyName = true;
   }
-  String formatOutput = currency.format(amount).trim();
+  String formatOutput = formatter.format(amount).trim();
+  String? currencyName;
   if (addCurrencyName == true && currencyKey != null) {
-    formatOutput = formatOutput + " " + currencyKey.toUpperCase();
+    currencyName = " " + currencyKey.toUpperCase();
   } else if (addCurrencyName == true) {
-    formatOutput = formatOutput +
-        " " +
+    currencyName = " " +
         (allWallets.indexedByPk[appStateSettings["selectedWalletPk"]]
                     ?.currency ??
                 "")
             .toUpperCase();
   }
+
+  if (useCustomNumberFormat) {
+    formatOutput = formatOutputWithNewDelimiterAndDecimal(
+      amount: finalNumber ?? amount,
+      currencyName: currencyName,
+      input: formatOutput,
+      delimiter: appStateSettings["numberFormatDelimiter"],
+      decimal: appStateSettings["numberFormatDecimal"],
+      symbol: symbol,
+    );
+  } else if (useCustomNumberFormat == false && currencyName != null) {
+    formatOutput = formatOutput + currencyName;
+  }
+
+  if (editFormattedOutput != null) {
+    return editFormattedOutput(formatOutput);
+  }
+
   return formatOutput;
   // if (finalNumber != null &&
   //     !finalNumber
@@ -220,6 +290,46 @@ String convertToMoney(
   //       formatOutput.length - numberDecimals - 1, formatOutput.length, '');
   // }
   // return currency.format(amount);
+}
+
+String formatOutputWithNewDelimiterAndDecimal({
+  required double amount,
+  required String input,
+  required String delimiter,
+  required String decimal,
+  required String symbol,
+  required String? currencyName,
+}) {
+  // Use a placeholder
+  input = input.replaceAll(".", "\uFFFD");
+  input = input.replaceAll(",", delimiter);
+  input = input.replaceAll("\uFFFD", decimal);
+  String negativeSign = "";
+  if (amount < 0) {
+    input = input.replaceRange(0, 1, "");
+    negativeSign = "-";
+  }
+  if (appStateSettings["numberFormatCurrencyFirst"] == false) {
+    return negativeSign +
+        input +
+        (symbol.length > 0 ? "  " : "") +
+        symbol +
+        (currencyName ?? "");
+  } else {
+    return negativeSign + symbol + input + (currencyName ?? "");
+  }
+}
+
+List<String> localizedMonthNames = [];
+initializeLocalizedMonthNames() {
+  localizedMonthNames = [];
+  for (int i = 1; i <= 12; i++) {
+    final DateTime date = DateTime(2022, i);
+    final String? locale = navigatorKey.currentContext?.locale.toString();
+    final String monthName = DateFormat.MMMM(locale).format(date).toLowerCase();
+    localizedMonthNames.add(monthName);
+  }
+  print("Initializing local months: " + localizedMonthNames.toString());
 }
 
 String getMonth(DateTime dateTime, {bool includeYear = false}) {
@@ -302,11 +412,16 @@ String getWordedDateShort(
 }
 
 // e.g. Today/Yesterday/Tomorrow/Tuesday/ March 15
-String getWordedDateShortMore(DateTime date,
-    {includeYear = false, includeTime = false, includeTimeIfToday = false}) {
+String getWordedDateShortMore(
+  DateTime date, {
+  includeYear = false,
+  includeTime = false,
+  includeTimeIfToday = false,
+  showTodayTomorrow = true,
+}) {
   final String? locale = navigatorKey.currentContext?.locale.toString();
 
-  if (checkYesterdayTodayTomorrow(date) != false) {
+  if (showTodayTomorrow && checkYesterdayTodayTomorrow(date) != false) {
     if (includeTimeIfToday) {
       return checkYesterdayTodayTomorrow(date) +
           " - " +
@@ -613,10 +728,28 @@ String getWordedNumber(
   if (removeTrailingZeroes(value.toStringAsFixed(10)) == "0") {
     return getCurrencyString(allWallets) + "0";
   }
-  return getCurrencyString(allWallets) +
-      NumberFormat.compact(locale: context.locale.toString())
-          .format(value)
-          .toString();
+  return convertToMoney(
+    allWallets,
+    value,
+    forceHideCurrencyName: true,
+    addCurrencyName: false,
+    getCustomNumberFormat: (decimalDigits, locale, currencySymbol) {
+      final NumberFormat formatter = NumberFormat.compactCurrency(
+        locale: locale,
+        decimalDigits: decimalDigits,
+        symbol: currencySymbol,
+      );
+      formatter.significantDigitsInUse = false;
+      formatter.maximumFractionDigits = value.abs() < 1000
+          ? value.abs() < 10
+              ? (decimalDigits ?? 2)
+              : 0
+          : 1;
+      formatter.minimumFractionDigits =
+          value.abs() < 10 ? (decimalDigits ?? 2) : 0;
+      return formatter;
+    },
+  );
 }
 
 double getPercentBetweenDates(DateTimeRange timeRange, DateTime currentTime) {
@@ -830,7 +963,8 @@ String pluralString(bool condition, String string) {
 // }
 
 bool lockAppWaitForRestart = false;
-void restartAppPopup(context) async {
+void restartAppPopup(context,
+    {String? subtitle, String? description, String? codeBlock}) async {
   // For now, enforce this until better solution found
   if (kIsWeb || true) {
     // Lock the side navigation
@@ -839,11 +973,22 @@ void restartAppPopup(context) async {
 
     openPopup(
       context,
-      title: "please-restart-the-application".tr(),
+      title: kIsWeb
+          ? "please-refresh-the-application".tr()
+          : "please-restart-the-application".tr(),
+      description: description,
+      subtitle: subtitle,
+      descriptionWidget: codeBlock == null
+          ? null
+          : Padding(
+              padding: const EdgeInsets.only(top: 8, bottom: 12),
+              child: CodeBlock(text: codeBlock),
+            ),
       icon: appStateSettings["outlinedIcons"]
           ? Icons.restart_alt_outlined
           : Icons.restart_alt_rounded,
       barrierDismissible: false,
+      // Show code widget with the name of the file monospace font
     );
   } else {
     // Pop all routes, select home tab
@@ -885,32 +1030,32 @@ class CustomMaterialPageRoute extends MaterialPageRoute {
 Future<dynamic> pushRoute(BuildContext context, Widget page,
     {String? routeName}) async {
   minimizeKeyboard(context);
-  if (appStateSettings["iOSNavigation"]) {
-    return await Navigator.push(
-      context,
-      CustomMaterialPageRoute(builder: (context) => page),
-    );
-  } else {
-    return await Navigator.push(
-      context,
-      PageRouteBuilder(
-        opaque: false,
-        transitionDuration: Duration(milliseconds: 300),
-        reverseTransitionDuration: Duration(milliseconds: 125),
-        transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          final tween = Tween(begin: Offset(0, 0.05), end: Offset.zero)
-              .chain(CurveTween(curve: Curves.easeOut));
-          return SlideTransition(
-            position: animation.drive(tween),
-            child: FadeTransition(opacity: animation, child: child),
-          );
-        },
-        pageBuilder: (context, animation, secondaryAnimation) {
-          return page;
-        },
-      ),
-    );
-  }
+  // if (appStateSettings["iOSNavigation"]) {
+  //   return await Navigator.push(
+  //     context,
+  //     CustomMaterialPageRoute(builder: (context) => page),
+  //   );
+  // }
+
+  return await Navigator.push(
+    context,
+    PageRouteBuilder(
+      opaque: false,
+      transitionDuration: Duration(milliseconds: 300),
+      reverseTransitionDuration: Duration(milliseconds: 125),
+      transitionsBuilder: (context, animation, secondaryAnimation, child) {
+        final tween = Tween(begin: Offset(0, 0.05), end: Offset.zero)
+            .chain(CurveTween(curve: Curves.easeOut));
+        return SlideTransition(
+          position: animation.drive(tween),
+          child: FadeTransition(opacity: animation, child: child),
+        );
+      },
+      pageBuilder: (context, animation, secondaryAnimation) {
+        return page;
+      },
+    ),
+  );
 }
 
 Brightness determineBrightnessTheme(context) {
@@ -956,6 +1101,10 @@ double getKeyboardHeight(context) {
   return EdgeInsets.fromViewPadding(
           View.of(context).viewInsets, View.of(context).devicePixelRatio)
       .bottom;
+}
+
+double getKeyboardHeightForceBuild(context) {
+  return MediaQuery.of(context).viewInsets.bottom;
 }
 
 Future<String> getDeviceInfo() async {
@@ -1211,6 +1360,11 @@ double absoluteZero(double number) {
 double? absoluteZeroNull(double? number) {
   if (number == null) return null;
   if (number == -0) return number.abs();
+  return number;
+}
+
+String absoluteZeroString(String number) {
+  if (number == "-0") return "0";
   return number;
 }
 

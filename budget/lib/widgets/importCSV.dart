@@ -10,6 +10,7 @@ import 'package:budget/widgets/button.dart';
 import 'package:budget/widgets/dropdownSelect.dart';
 import 'package:budget/widgets/exportCSV.dart';
 import 'package:budget/widgets/globalSnackbar.dart';
+import 'package:budget/widgets/tableEntry.dart';
 import 'package:budget/widgets/openBottomSheet.dart';
 import 'package:budget/widgets/openPopup.dart';
 import 'package:budget/widgets/openSnackbar.dart';
@@ -17,6 +18,7 @@ import 'package:budget/widgets/progressBar.dart';
 import 'package:budget/widgets/settingsContainers.dart';
 import 'package:budget/widgets/textInput.dart';
 import 'package:budget/widgets/textWidgets.dart';
+import 'package:budget/struct/commonDateFormats.dart';
 import 'package:budget/widgets/viewAllTransactionsButton.dart';
 import 'package:drift/drift.dart' hide Column, Table;
 import 'package:easy_localization/easy_localization.dart';
@@ -78,6 +80,7 @@ class _ImportCSVState extends State<ImportCSV> {
         throw "no-file-selected".tr();
       }
     }, onError: (e) {
+      print("Error opening CSV: " + e.toString());
       openPopup(
         context,
         title: "csv-error".tr(),
@@ -118,6 +121,12 @@ class _ImportCSVState extends State<ImportCSV> {
       fileContents = fileContents
           .map((row) => row + List.filled(maxColumns - row.length, ""))
           .toList();
+
+      // Remove blank rows
+      fileContents = fileContents
+          .where((list) => list.any((element) => element.trim().isNotEmpty))
+          .toList();
+
       int headersIndex =
           _findListIndexWithMultipleNonEmptyStrings(fileContents) ?? 0;
       List<String> headers = fileContents[headersIndex];
@@ -223,69 +232,12 @@ class _ImportCSVState extends State<ImportCSV> {
         context,
         PopupFramework(
           title: "assign-columns".tr(),
+          subtitle: (fileContents.length - 1).toString() +
+              " " +
+              "transactions-in-the-csv".tr(),
           child: Column(
             children: [
-              SingleChildScrollView(
-                scrollDirection: Axis.vertical,
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(10),
-                    child: Table(
-                      defaultColumnWidth: IntrinsicColumnWidth(),
-                      defaultVerticalAlignment:
-                          TableCellVerticalAlignment.middle,
-                      children: <TableRow>[
-                        TableRow(
-                          decoration: BoxDecoration(
-                            color:
-                                Theme.of(context).colorScheme.primaryContainer,
-                          ),
-                          children: <Widget>[
-                            for (dynamic header in headers)
-                              Padding(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 11.0, vertical: 5),
-                                child: TextFont(
-                                  text: header.toString(),
-                                  fontWeight: FontWeight.bold,
-                                  textColor: Theme.of(context)
-                                      .colorScheme
-                                      .onPrimaryContainer,
-                                  fontSize: 16,
-                                ),
-                              )
-                          ],
-                        ),
-                        TableRow(
-                          decoration: BoxDecoration(
-                              color: appStateSettings["materialYou"]
-                                  ? Theme.of(context)
-                                      .colorScheme
-                                      .onPrimaryContainer
-                                  : getColor(context, "lightDarkAccentHeavy")),
-                          children: <Widget>[
-                            for (dynamic entry in firstEntry)
-                              Padding(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 11.0, vertical: 5),
-                                child: TextFont(
-                                  text: entry.toString(),
-                                  fontSize: 15,
-                                  textColor: appStateSettings["materialYou"]
-                                      ? Theme.of(context)
-                                          .colorScheme
-                                          .primaryContainer
-                                      : getColor(context, "black"),
-                                ),
-                              )
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
+              TableEntry(firstEntry: firstEntry, headers: headers),
               Padding(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 8, vertical: 15),
@@ -544,7 +496,7 @@ class _ImportCSVState extends State<ImportCSV> {
         dateFormat: dateFormat,
         assignedColumns: assignedColumns,
         fileContents: fileContents,
-        next: () {
+        next: (numberOfErrors) {
           Navigator.of(context).pop();
           openPopup(
             context,
@@ -552,13 +504,21 @@ class _ImportCSVState extends State<ImportCSV> {
                 ? Icons.check_circle_outline_outlined
                 : Icons.check_circle_outline_rounded,
             title: "done".tr() + "!",
-            description: "successfully-imported".tr() +
+            description: "successfully-imported".tr().capitalizeFirst +
                 " " +
                 // Subtract one, since we don't count the header of the CSV as an entry
-                (fileContents.length - firstEntryIndex).toString() +
+                (fileContents.length - firstEntryIndex - numberOfErrors)
+                    .toString() +
                 " " +
                 "transactions".tr().toLowerCase() +
-                ".",
+                "." +
+                (numberOfErrors > 0
+                    ? (" " +
+                        "errors".tr().capitalizeFirst +
+                        ": " +
+                        numberOfErrors.toString() +
+                        ".")
+                    : ""),
             onSubmitLabel: "ok".tr(),
             onSubmit: () {
               Navigator.pop(context);
@@ -594,7 +554,7 @@ class _ImportCSVState extends State<ImportCSV> {
     // print(DateTime.now().toString());
     openBottomSheet(
       context,
-      fullSnap: true,
+      popupWithKeyboard: true,
       PopupFramework(
         title: "enter-google-sheet-url".tr(),
         subtitle: "enter-google-sheet-url-description".tr(),
@@ -639,11 +599,6 @@ class _ImportCSVState extends State<ImportCSV> {
         ),
       ),
     );
-    // Fix over-scroll stretch when keyboard pops up quickly
-    Future.delayed(Duration(milliseconds: 100), () {
-      bottomSheetControllerGlobal.scrollTo(0,
-          duration: Duration(milliseconds: 100));
-    });
   }
 
   String? convertGoogleSheetsUrlToCsvUrl(String googleSheetsUrl) {
@@ -804,7 +759,7 @@ class ImportingEntriesPopup extends StatefulWidget {
   final Map<String, Map<String, dynamic>> assignedColumns;
   final String dateFormat;
   final List<List<String>> fileContents;
-  final VoidCallback next;
+  final Function(int numberOfErrors) next;
 
   @override
   State<ImportingEntriesPopup> createState() => _ImportingEntriesPopupState();
@@ -1027,13 +982,21 @@ class _ImportingEntriesPopupState extends State<ImportingEntriesPopup> {
 
     bool income = amount > 0;
 
+    // if mainCategoryPk == null -> subcategory
+    String mainCategoryFk =
+        selectedCategory.mainCategoryPk ?? selectedCategory.categoryPk;
+    String? subCategoryFk = selectedCategory.mainCategoryPk == null
+        ? null
+        : selectedCategory.categoryPk;
+
     return ImportingTransactionAndTitle(
       Transaction(
         transactionPk: "-1",
         name: name,
         amount: amount,
         note: note,
-        categoryFk: categoryFk,
+        categoryFk: mainCategoryFk,
+        subCategoryFk: subCategoryFk,
         walletFk: walletFk,
         dateCreated: dateCreated,
         dateTimeModified: DateTime.now(),
@@ -1046,7 +1009,7 @@ class _ImportingEntriesPopupState extends State<ImportingEntriesPopup> {
           ? null
           : TransactionAssociatedTitle(
               associatedTitlePk: "-1",
-              categoryFk: selectedCategory.categoryPk,
+              categoryFk: mainCategoryFk,
               isExactMatch: false,
               title: name.trim(),
               dateCreated: dateCreated,
@@ -1162,7 +1125,7 @@ class _ImportingEntriesPopupState extends State<ImportingEntriesPopup> {
         );
       }
 
-      widget.next();
+      widget.next(skippedError.length);
     } catch (e) {
       openPopup(
         context,
@@ -1232,64 +1195,10 @@ DateTime? tryDateFormatting(
   DateTime? dateCreated;
   try {
     dateCreated = format.parse(stringToParse.trim());
-    dateCreated =
-        DateTime(dateCreated.year, dateCreated.month, dateCreated.day);
+    if (dateCreated.year < 1500) throw ("Invalid year, try another format");
   } catch (e) {
+    dateCreated = null;
     print("Failed to parse date and time!" + e.toString());
   }
   return dateCreated;
-}
-
-List<String> getCommonDateFormats() {
-  return [
-    "yyyy-MM-dd'T'HH:mm:ss",
-    "MM/dd/yyyy HH:mm:ss",
-    "dd.MM.yyyy HH:mm:ss",
-    "yyyyMMdd'T'HHmmss",
-    "yyyy/MM/dd HH:mm:ss",
-    "dd-MM-yyyy HH:mm:ss",
-    "MM.dd.yyyy HH:mm:ss",
-    "yyyyMMdd'T'HH:mm:ss",
-    "yyyy-MM-dd HH:mm:ss",
-    "dd/MM/yyyy HH:mm",
-    "yyyy/MM/dd",
-    "MM/dd/yyyy",
-    "dd.MM.yyyy",
-    "yyyyMMdd",
-    "yyyy-MM-dd",
-    "dd/MM/yyyy",
-    "MM.dd.yyyy",
-    "dd-MM-yyyy",
-    "MMM dd, yyyy HH:mm:ss",
-    "MMM dd, yyyy",
-    "EEEE, dd MMMM yyyy HH:mm:ss",
-    "EEEE, dd MMMM yyyy",
-    "HH:mm:ss dd/MM/yyyy",
-    "HH:mm:ss yyyy-MM-dd",
-    "HH:mm:ss MM/dd/yyyy",
-    "HH:mm:ss dd.MM.yyyy",
-    "HHmmss yyyyMMdd",
-    "HH:mm:ss yyyy/MM/dd",
-    "HH:mm:ss dd-MM-yyyy",
-    "HH:mm:ss MM.dd.yyyy",
-    "HH:mm:ss dd/MM/yyyy",
-    "HH:mm:ss MM.dd.yyyy",
-    "HH:mm:ss dd-MM-yyyy",
-    "HH:mm:ss MMM dd, yyyy",
-    "HH:mm:ss EEEE, dd MMMM yyyy",
-    "HH:mm:ss dd/MM/yyyy",
-    "HH:mm:ss MM.dd.yyyy",
-    "HH:mm:ss dd-MM-yyyy",
-    "HH:mm:ss MMM dd, yyyy",
-    "HH:mm:ss EEEE, dd MMMM yyyy",
-    "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'",
-    "yyyy-MM-dd'T'HH:mm:ss.SSSZ",
-    "yyyy-MM-dd'T'HH:mm:ss.SSSX",
-    "yyyy-MM-dd'T'HH:mm:ss.SSSXX",
-    "yyyy-MM-dd'T'HH:mm:ss.SSSXXX",
-    "yyyy-MM-dd'T'HH:mm:ss.SSSSSS",
-    "yyyy-MM-dd HH:mm:ss.SSS",
-    "yyyy-MM-dd HH:mm:ss",
-    "yyyy-MM-dd HH:mm",
-  ];
 }

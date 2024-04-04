@@ -31,11 +31,13 @@ import 'package:budget/struct/currencyFunctions.dart';
 import 'package:universal_io/io.dart';
 
 String getDecimalSeparator() {
-  return numberFormatSymbols[
-              (appStateSettings["numberFormatLocale"] ?? Platform.localeName)
-                  .split("-")[0]]
-          ?.DECIMAL_SEP ??
-      ".";
+  if (appStateSettings["customNumberFormat"] == true) {
+    return appStateSettings["numberFormatDecimal"].toString();
+  }
+  String? locale = appStateSettings["customNumberFormat"] == true
+      ? "en-US"
+      : Platform.localeName;
+  return numberFormatSymbols[(locale).split("-")[0]]?.DECIMAL_SEP ?? ".";
 }
 
 class SelectAmount extends StatefulWidget {
@@ -1206,6 +1208,7 @@ class SelectAmountValue extends StatefulWidget {
     this.next,
     this.nextLabel,
     this.allowZero = false,
+    this.enableDecimal = true,
     this.suffix = "",
     this.showEnteredNumber = true,
     this.extraWidgetAboveNumbers,
@@ -1215,6 +1218,7 @@ class SelectAmountValue extends StatefulWidget {
   final VoidCallback? next;
   final String? nextLabel;
   final bool allowZero;
+  final bool enableDecimal;
   final String suffix;
   final bool showEnteredNumber;
   final Widget? extraWidgetAboveNumbers;
@@ -1330,6 +1334,7 @@ class _SelectAmountValueState extends State<SelectAmountValue> {
   }
 
   addToAmount(String input) {
+    if (input == "." && widget.enableDecimal == false) return;
     String amountClone = amount;
     if (input == "." && amount.contains(".")) {
     } else {
@@ -1475,6 +1480,7 @@ class _SelectAmountValueState extends State<SelectAmountValue> {
                   Row(
                     children: [
                       CalculatorButton(
+                        disabled: widget.enableDecimal == false,
                         label: getDecimalSeparator(),
                         editAmount: () {
                           addToAmount(".");
@@ -1538,4 +1544,23 @@ String removeTrailingZeroes(String input) {
     index--;
   }
   return input.substring(0, index + 1);
+}
+
+int countNonTrailingZeroes(String input) {
+  int decimalIndex = input.indexOf('.');
+
+  if (decimalIndex == -1) {
+    return 0;
+  }
+
+  int count = 0;
+  for (int i = decimalIndex + 1; i < input.length; i++) {
+    if (input[i] != '0') {
+      count++;
+    } else if (count > 0) {
+      break;
+    }
+  }
+
+  return count;
 }

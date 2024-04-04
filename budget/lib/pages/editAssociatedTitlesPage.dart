@@ -67,20 +67,14 @@ class _EditAssociatedTitlesPageState extends State<EditAssociatedTitlesPage> {
         title: "edit-titles".tr(),
         scrollToTopButton: true,
         floatingActionButton: AnimateFABDelayed(
-          fab: FAB(
+          fab: AddFAB(
             tooltip: "add-title".tr(),
-            openPage: SizedBox.shrink(),
             onTap: () {
               openBottomSheet(
                 context,
-                fullSnap: true,
+                popupWithKeyboard: true,
                 AddAssociatedTitlePage(),
               );
-              Future.delayed(Duration(milliseconds: 100), () {
-                // Fix over-scroll stretch when keyboard pops up quickly
-                bottomSheetControllerGlobal.scrollTo(0,
-                    duration: Duration(milliseconds: 100));
-              });
             },
           ),
         ),
@@ -91,14 +85,9 @@ class _EditAssociatedTitlesPageState extends State<EditAssociatedTitlesPage> {
             onPressed: () {
               openBottomSheet(
                 context,
-                fullSnap: true,
+                popupWithKeyboard: true,
                 AddAssociatedTitlePage(),
               );
-              Future.delayed(Duration(milliseconds: 100), () {
-                // Fix over-scroll stretch when keyboard pops up quickly
-                bottomSheetControllerGlobal.scrollTo(0,
-                    duration: Duration(milliseconds: 100));
-              });
             },
             icon: Icon(appStateSettings["outlinedIcons"]
                 ? Icons.add_outlined
@@ -182,16 +171,11 @@ class _EditAssociatedTitlesPageState extends State<EditAssociatedTitlesPage> {
                     VoidCallback onTap = () {
                       openBottomSheet(
                         context,
-                        fullSnap: true,
+                        popupWithKeyboard: true,
                         AddAssociatedTitlePage(
                           associatedTitle: associatedTitle,
                         ),
                       );
-                      Future.delayed(Duration(milliseconds: 100), () {
-                        // Fix over-scroll stretch when keyboard pops up quickly
-                        bottomSheetControllerGlobal.scrollTo(0,
-                            duration: Duration(milliseconds: 100));
-                      });
                     };
                     return EditRowEntry(
                       canReorder: searchValue == "" &&

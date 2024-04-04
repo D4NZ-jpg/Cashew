@@ -128,6 +128,7 @@ class _BudgetPageContentState extends State<_BudgetPageContent> {
     required VoidCallback toggleAllSubCategories,
     required List<CategoryWithTotal> dataFilterUnassignedTransactions,
     required bool hasSubCategories,
+    required Color? pageBackgroundColor,
   }) {
     return Column(
       children: [
@@ -159,10 +160,7 @@ class _BudgetPageContentState extends State<_BudgetPageContent> {
               // }
             },
             isPastBudget: widget.isPastBudget ?? false,
-            middleColor: appStateSettings["materialYou"]
-                ? dynamicPastel(context, budgetColorScheme.primary,
-                    amount: 0.92)
-                : null,
+            middleColor: pageBackgroundColor,
           ),
         ),
         PieChartOptions(
@@ -207,9 +205,13 @@ class _BudgetPageContentState extends State<_BudgetPageContent> {
         widget.budget.name +
         budgetRange.end.millisecondsSinceEpoch.toString() +
         widget.budget.budgetPk;
-    Color? pageBackgroundColor = appStateSettings["materialYou"]
-        ? dynamicPastel(context, budgetColorScheme.primary, amount: 0.92)
-        : null;
+    Color? pageBackgroundColor = Theme.of(context).brightness ==
+                Brightness.dark &&
+            appStateSettings["forceFullDarkBackground"]
+        ? Colors.black
+        : appStateSettings["materialYou"]
+            ? dynamicPastel(context, budgetColorScheme.primary, amount: 0.92)
+            : null;
     bool showIncomeExpenseIcons = widget.budget.budgetTransactionFilters == null
         ? true
         : widget.budget.budgetTransactionFilters
@@ -282,7 +284,7 @@ class _BudgetPageContentState extends State<_BudgetPageContent> {
             backgroundColor: pageBackgroundColor,
             listID: pageId,
             floatingActionButton: AnimateFABDelayed(
-              fab: FAB(
+              fab: AddFAB(
                 tooltip: "add-transaction".tr(),
                 openPage: AddTransactionPage(
                   selectedBudget: widget.budget.sharedKey != null ||
@@ -292,7 +294,7 @@ class _BudgetPageContentState extends State<_BudgetPageContent> {
                   routesToPopAfterDelete: RoutesToPopAfterDelete.One,
                 ),
                 color: budgetColorScheme.secondary,
-                colorPlus: budgetColorScheme.onSecondary,
+                colorIcon: budgetColorScheme.onSecondary,
               ),
             ),
             actions: [
@@ -393,22 +395,23 @@ class _BudgetPageContentState extends State<_BudgetPageContent> {
                       multiplyTotalBy: determineBudgetPolarity(widget.budget),
                     );
                     List<Widget> categoryEntries = [];
-
+                    double totalSpentPercent = 45 / 360;
                     snapshot.data!.asMap().forEach(
                       (index, category) {
                         categoryEntries.add(
                           CategoryEntry(
+                            percentageOffset: totalSpentPercent,
                             getPercentageAfterText: (double categorySpent) {
                               if (widget.budget.income == true) {
                                 return categorySpent < 0 &&
                                         showIncomeExpenseIcons
-                                    ? "of-total".tr()
-                                    : "of-saving".tr();
+                                    ? "of-total".tr().toLowerCase()
+                                    : "of-saving".tr().toLowerCase();
                               } else {
                                 return categorySpent > 0 &&
                                         showIncomeExpenseIcons
-                                    ? "of-total".tr()
-                                    : "of-spending".tr();
+                                    ? "of-total".tr().toLowerCase()
+                                    : "of-spending".tr().toLowerCase();
                               }
                             },
                             selectedSubCategoryPk: selectedCategory?.categoryPk,
@@ -482,6 +485,9 @@ class _BudgetPageContentState extends State<_BudgetPageContent> {
                             allSelected: selectedCategory == null,
                           ),
                         );
+                        if (s.totalSpent != 0)
+                          totalSpentPercent +=
+                              category.total.abs() / s.totalSpent;
                       },
                     );
                     // print(s.totalSpent);
@@ -620,6 +626,7 @@ class _BudgetPageContentState extends State<_BudgetPageContent> {
                               dataFilterUnassignedTransactions:
                                   s.dataFilterUnassignedTransactions,
                               hasSubCategories: s.hasSubCategories,
+                              pageBackgroundColor: pageBackgroundColor,
                             ),
                           // if (snapshot.data!.length > 0)
                           //   SizedBox(height: 35),
@@ -673,8 +680,6 @@ class _BudgetPageContentState extends State<_BudgetPageContent> {
                       budgetRange: budgetRange,
                       budgetColorScheme: budgetColorScheme,
                       showIfNone: false,
-                      padding: EdgeInsets.only(
-                          left: 5, right: 7, bottom: 12, top: 18),
                     ),
                   ),
                 ),
@@ -747,6 +752,10 @@ class _BudgetPageContentState extends State<_BudgetPageContent> {
                       )
                     : SizedBox.shrink(),
                 showTotalCashFlow: true,
+                showExcludedBudgetTag: (Transaction transaction) =>
+                    transaction.budgetFksExclude
+                        ?.contains(widget.budget.budgetPk) ==
+                    true,
               ),
               SliverToBoxAdapter(
                 child: widget.budget.sharedDateUpdated == null

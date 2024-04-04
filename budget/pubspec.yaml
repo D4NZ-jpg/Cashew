@@ -15,7 +15,7 @@ publish_to: "none" # Remove this line if you wish to publish to pub.dev
 # In iOS, build-name is used as CFBundleShortVersionString while build-number used as CFBundleVersion.
 # Read more about iOS versioning at
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
-version: 5.2.2+323
+version: 5.2.8+347
 
 environment:
   sdk: ">= 3.0.0"
@@ -41,7 +41,10 @@ dependencies:
   googleapis: ^11.2.0
   universal_html: ^2.0.8
   flutter_charset_detector: ^1.0.2
-  file_picker: ^6.1.1
+  file_picker:
+    git:
+      # This fork implements https://github.com/miguelpruivo/flutter_file_picker/issues/1404
+      url: https://github.com/melWiss/flutter_file_picker.git
   auto_size_text: ^3.0.0
   shared_preferences: ^2.0.13
   csv: ^5.0.1
@@ -96,6 +99,8 @@ dependencies:
   notification_listener_service: ^0.3.3
   home_widget: ^0.4.0
   material_symbols_icons: ^4.2719.1
+  app_links: ^3.5.0
+  expandable_page_view: ^1.0.17
 
 # flutter pub run flutter_launcher_icons:main
 flutter_icons:

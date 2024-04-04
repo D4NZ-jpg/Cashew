@@ -5,6 +5,7 @@ import 'package:budget/widgets/animatedExpanded.dart';
 import 'package:budget/widgets/dropdownSelect.dart';
 import 'package:budget/widgets/editRowEntry.dart';
 import 'package:budget/widgets/fadeIn.dart';
+import 'package:budget/widgets/navigationSidebar.dart';
 import 'package:budget/widgets/openBottomSheet.dart';
 import 'package:budget/widgets/openContainerNavigation.dart';
 import 'package:budget/widgets/tappable.dart';
@@ -118,28 +119,45 @@ class _SettingsContainerSwitchState extends State<SettingsContainerSwitch> {
         description: description,
         afterWidget: Padding(
           padding: const EdgeInsets.only(left: 5),
-          child: getPlatform() == PlatformOS.isIOS
-              ? CupertinoSwitch(
-                  activeColor: Theme.of(context).colorScheme.primary,
-                  value: value,
-                  onChanged: (_) {
-                    toggleSwitch();
-                  },
-                )
-              : Switch(
-                  activeColor: Theme.of(context).colorScheme.primary,
-                  value: value,
-                  onChanged: (_) {
-                    toggleSwitch();
-                  },
-                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
+          child: PlatformSwitch(
+            value: value,
+            onTap: toggleSwitch,
+          ),
         ),
         icon: widget.icon,
         verticalPadding: widget.verticalPadding,
         descriptionColor: widget.descriptionColor,
       ),
     );
+  }
+}
+
+class PlatformSwitch extends StatelessWidget {
+  final bool value;
+  final Function onTap;
+
+  PlatformSwitch({required this.value, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    if (getPlatform() == PlatformOS.isIOS) {
+      return CupertinoSwitch(
+        activeColor: Theme.of(context).colorScheme.primary,
+        value: value,
+        onChanged: (_) {
+          onTap();
+        },
+      );
+    } else {
+      return Switch(
+        activeColor: Theme.of(context).colorScheme.primary,
+        value: value,
+        onChanged: (_) {
+          onTap();
+        },
+        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      );
+    }
   }
 }
 
@@ -158,6 +176,7 @@ class SettingsContainerOpenPage extends StatelessWidget {
     this.isOutlinedColumn,
     this.isWideOutlined,
     this.descriptionColor,
+    this.afterWidget,
   }) : super(key: key);
 
   final Widget openPage;
@@ -172,6 +191,7 @@ class SettingsContainerOpenPage extends StatelessWidget {
   final bool? isOutlinedColumn;
   final bool? isWideOutlined;
   final Color? descriptionColor;
+  final Widget? afterWidget;
 
   @override
   Widget build(BuildContext context) {
@@ -219,12 +239,17 @@ class SettingsContainerOpenPage extends StatelessWidget {
             },
             afterWidget: isOutlined ?? false
                 ? SizedBox.shrink()
-                : Icon(
-                    appStateSettings["outlinedIcons"]
-                        ? Icons.chevron_right_outlined
-                        : Icons.chevron_right_rounded,
-                    size: isOutlined == true ? 20 : 30,
-                    color: colorScheme.secondary,
+                : Row(
+                    children: [
+                      if (afterWidget != null) afterWidget!,
+                      Icon(
+                        appStateSettings["outlinedIcons"]
+                            ? Icons.chevron_right_outlined
+                            : Icons.chevron_right_rounded,
+                        size: isOutlined == true ? 20 : 30,
+                        color: colorScheme.secondary,
+                      ),
+                    ],
                   ),
             isOutlined: isOutlined,
             isOutlinedColumn: isOutlinedColumn,
@@ -250,6 +275,7 @@ class SettingsContainerDropdown extends StatefulWidget {
     this.getLabel,
     this.verticalPadding,
     this.enableBorderRadius = false,
+    this.faintValues = const [],
   }) : super(key: key);
 
   final String title;
@@ -261,6 +287,7 @@ class SettingsContainerDropdown extends StatefulWidget {
   final Function(String)? getLabel;
   final double? verticalPadding;
   final bool enableBorderRadius;
+  final List<String> faintValues;
 
   @override
   State<SettingsContainerDropdown> createState() =>
@@ -293,6 +320,7 @@ class _SettingsContainerDropdownState extends State<SettingsContainerDropdown> {
           onChanged: widget.onChanged,
           backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
           getLabel: widget.getLabel,
+          faintValues: widget.faintValues,
         ),
       ),
     );
@@ -519,7 +547,9 @@ class SettingsContainer extends StatelessWidget {
     return ClipRRect(
       borderRadius: BorderRadius.circular(
           (enableBorderRadius || getIsFullScreen(context)) && isOutlined != true
-              ? 20
+              ? getPlatform() == PlatformOS.isIOS
+                  ? 10
+                  : 20
               : 0),
       child: isOutlined == true
           ? SettingsContainerOutlined(
@@ -543,6 +573,11 @@ class SettingsContainer extends StatelessWidget {
               child: Padding(
                 padding: EdgeInsets.symmetric(
                   horizontal: horizontalPadding ?? 18,
+                  // (enableBorderRadius &&
+                  //         getWidthNavigationSidebar(context) <= 0 &&
+                  //         icon != null
+                  //     ? 10
+                  //     : 18),
                   vertical: verticalPadding ?? 11,
                 ),
                 child: Row(

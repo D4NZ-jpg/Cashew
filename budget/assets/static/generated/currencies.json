@@ -1383,7 +1383,7 @@
   "kzt": {
     "Currency": "Tenge",
     "Code": "KZT",
-    "Symbol": "лв",
+    "Symbol": "₸",
     "CountryName": "Kazakhstan",
     "CountryCode": "KZ"
   },
@@ -2605,7 +2605,6 @@
   "uzs": {
     "Currency": "Som",
     "Code": "UZS",
-    "Symbol": "лв",
     "CountryName": "Uzbekistan",
     "CountryCode": "UZ"
   },

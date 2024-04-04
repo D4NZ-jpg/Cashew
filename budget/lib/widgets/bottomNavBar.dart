@@ -1,6 +1,7 @@
 import 'package:budget/database/tables.dart';
 import 'package:budget/functions.dart';
 import 'package:budget/pages/editBudgetPage.dart';
+import 'package:budget/pages/editHomePage.dart';
 import 'package:budget/pages/editObjectivesPage.dart';
 import 'package:budget/pages/subscriptionsPage.dart';
 import 'package:budget/pages/transactionsListPage.dart';
@@ -56,6 +57,16 @@ class BottomNavBarState extends State<BottomNavBar> {
       if (navigationIndex == 2)
         budgetsListPageStateKey.currentState?.scrollToTop();
       if (index == 3) settingsPageStateKey.currentState?.scrollToTop();
+      if (navigationIndex == 5)
+        subscriptionsPageStateKey.currentState?.scrollToTop();
+      if (navigationIndex == 7)
+        walletDetailsAllSpendingPageStateKey.currentState?.scrollToTop();
+      if (navigationIndex == 14)
+        objectivesListPageStateKey.currentState?.scrollToTop();
+      if (navigationIndex == 16)
+        upcomingOverdueTransactionsStateKey.currentState?.scrollToTop();
+      if (navigationIndex == 17)
+        creditDebtTransactionsKey.currentState?.scrollToTop();
     } else {
       // We need to change to the navigation index, however the selectedIndex remains unchanged
       // Since the selectedIndex is the index of the selected navigation bar entry
@@ -99,11 +110,17 @@ class BottomNavBarState extends State<BottomNavBar> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
-                      NavBarIcon(
-                        onItemTapped: onItemTapped,
-                        icon: navBarIconsData["home"]!.iconData,
-                        index: 0,
-                        currentIndex: selectedIndex,
+                      GestureDetector(
+                        onLongPress: () {
+                          HapticFeedback.heavyImpact();
+                          pushRoute(context, EditHomePage());
+                        },
+                        child: NavBarIcon(
+                          onItemTapped: onItemTapped,
+                          icon: navBarIconsData["home"]!.iconData,
+                          index: 0,
+                          currentIndex: selectedIndex,
+                        ),
                       ),
                       CustomizableNavigationBarIcon(
                         shortcutAppSettingKey: "customNavBarShortcut1",
@@ -191,10 +208,16 @@ class BottomNavBarState extends State<BottomNavBar> {
         child: NavigationBar(
           animationDuration: Duration(milliseconds: 1000),
           destinations: [
-            NavigationDestination(
-              icon: Icon(navBarIconsData["home"]!.iconData),
-              label: navBarIconsData["home"]!.label.tr(),
-              tooltip: "",
+            GestureDetector(
+              onLongPress: () {
+                HapticFeedback.heavyImpact();
+                pushRoute(context, EditHomePage());
+              },
+              child: NavigationDestination(
+                icon: Icon(navBarIconsData["home"]!.iconData),
+                label: navBarIconsData["home"]!.label.tr(),
+                tooltip: "",
+              ),
             ),
             CustomizableNavigationBarIcon(
               shortcutAppSettingKey: "customNavBarShortcut1",
@@ -204,7 +227,10 @@ class BottomNavBarState extends State<BottomNavBar> {
               navigationBarIconBuilder: (NavBarIconData iconData) {
                 return NavigationDestination(
                   icon: Icon(iconData.iconData, size: iconData.iconSize),
-                  label: iconData.label.tr(),
+                  label: iconData.label.tr().length > 15 &&
+                          iconData.labelShort != null
+                      ? (iconData.labelShort ?? "").tr()
+                      : iconData.label.tr(),
                   tooltip: "",
                 );
               },
@@ -217,7 +243,10 @@ class BottomNavBarState extends State<BottomNavBar> {
               navigationBarIconBuilder: (NavBarIconData iconData) {
                 return NavigationDestination(
                   icon: Icon(iconData.iconData, size: iconData.iconSize),
-                  label: iconData.label.tr(),
+                  label: iconData.label.tr().length > 15 &&
+                          iconData.labelShort != null
+                      ? (iconData.labelShort ?? "").tr()
+                      : iconData.label.tr(),
                   tooltip: "",
                 );
               },

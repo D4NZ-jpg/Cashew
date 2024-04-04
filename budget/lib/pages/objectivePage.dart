@@ -121,6 +121,42 @@ class _ObjectivePageContentState extends State<_ObjectivePageContent> {
     }
   }
 
+  openSelectIconPopup() {
+    openBottomSheet(
+      context,
+      PopupFramework(
+        title: "select-icon".tr(),
+        child: SelectCategoryImage(
+          setSelectedImage: (String? selection) async {
+            String? selectedIcon =
+                (selection ?? "").replaceFirst("assets/categories/", "");
+            Objective newObjective = widget.objective.copyWith(
+              iconName: Value(selectedIcon),
+              emojiIconName: Value(null),
+            );
+            await database.createOrUpdateObjective(
+              newObjective,
+            );
+          },
+          setSelectedEmoji: (String? selection) async {
+            Objective newObjective = widget.objective.copyWith(
+              iconName: Value(null),
+              emojiIconName: Value(selection),
+            );
+            await database.createOrUpdateObjective(
+              newObjective,
+            );
+            print(newObjective);
+          },
+          selectedImage:
+              "assets/categories/" + widget.objective.iconName.toString(),
+          setSelectedTitle: (String? titleRecommendation) {},
+        ),
+      ),
+      showScrollbar: true,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     Widget numberTransactionsWidget = StreamBuilder<int?>(
@@ -154,9 +190,13 @@ class _ObjectivePageContentState extends State<_ObjectivePageContent> {
           defaultColor: Theme.of(context).colorScheme.primary),
       brightness: determineBrightnessTheme(context),
     );
-    Color? pageBackgroundColor = appStateSettings["materialYou"]
-        ? dynamicPastel(context, objectiveColorScheme.primary, amount: 0.92)
-        : null;
+    Color? pageBackgroundColor = Theme.of(context).brightness ==
+                Brightness.dark &&
+            appStateSettings["forceFullDarkBackground"]
+        ? Colors.black
+        : appStateSettings["materialYou"]
+            ? dynamicPastel(context, objectiveColorScheme.primary, amount: 0.92)
+            : null;
     String pageId = widget.objective.objectivePk;
     return WillPopScope(
       onWillPop: () async {
@@ -176,7 +216,7 @@ class _ObjectivePageContentState extends State<_ObjectivePageContent> {
             backgroundColor: pageBackgroundColor,
             listID: pageId,
             floatingActionButton: AnimateFABDelayed(
-              fab: FAB(
+              fab: AddFAB(
                 tooltip: "add-transaction".tr(),
                 openPage: AddTransactionPage(
                   selectedObjective: widget.objective,
@@ -184,7 +224,7 @@ class _ObjectivePageContentState extends State<_ObjectivePageContent> {
                   selectedIncome: widget.objective.income,
                 ),
                 color: objectiveColorScheme.secondary,
-                colorPlus: objectiveColorScheme.onSecondary,
+                colorIcon: objectiveColorScheme.onSecondary,
               ),
             ),
             expandedHeight: 56,
@@ -214,23 +254,24 @@ class _ObjectivePageContentState extends State<_ObjectivePageContent> {
                     },
                   ),
                   // Only show for loan goal
-                  if (widget.objective.type == ObjectiveType.loan)
-                    DropdownItemMenu(
-                      id: "delete-goal",
-                      label: widget.objective.type == ObjectiveType.loan
-                          ? "delete-loan".tr()
-                          : "delete-goal".tr(),
-                      icon: appStateSettings["outlinedIcons"]
-                          ? Icons.delete_outlined
-                          : Icons.delete_rounded,
-                      action: () {
-                        deleteObjectivePopup(
-                          context,
-                          objective: widget.objective,
-                          routesToPopAfterDelete: RoutesToPopAfterDelete.One,
-                        );
-                      },
-                    ),
+                  // if (widget.objective.type == ObjectiveType.loan &&
+                  //     getIsDifferenceOnlyLoan(widget.objective) == false)
+                  //   DropdownItemMenu(
+                  //     id: "delete-goal",
+                  //     label: widget.objective.type == ObjectiveType.loan
+                  //         ? "delete-loan".tr()
+                  //         : "delete-goal".tr(),
+                  //     icon: appStateSettings["outlinedIcons"]
+                  //         ? Icons.delete_outlined
+                  //         : Icons.delete_rounded,
+                  //     action: () {
+                  //       deleteObjectivePopup(
+                  //         context,
+                  //         objective: widget.objective,
+                  //         routesToPopAfterDelete: RoutesToPopAfterDelete.One,
+                  //       );
+                  //     },
+                  //   ),
                 ],
               ),
             ],
@@ -311,52 +352,11 @@ class _ObjectivePageContentState extends State<_ObjectivePageContent> {
                                     borderRadius: 100,
                                     canEditByLongPress: false,
                                     margin: EdgeInsets.zero,
-                                    onTap: () async {
-                                      await openBottomSheet(
-                                        context,
-                                        PopupFramework(
-                                          title: "select-icon".tr(),
-                                          child: SelectCategoryImage(
-                                            setSelectedImage:
-                                                (String? selection) async {
-                                              String? selectedIcon =
-                                                  (selection ?? "")
-                                                      .replaceFirst(
-                                                          "assets/categories/",
-                                                          "");
-                                              Objective newObjective =
-                                                  widget.objective.copyWith(
-                                                iconName: Value(selectedIcon),
-                                                emojiIconName: Value(null),
-                                              );
-                                              await database
-                                                  .createOrUpdateObjective(
-                                                newObjective,
-                                              );
-                                            },
-                                            setSelectedEmoji:
-                                                (String? selection) async {
-                                              Objective newObjective =
-                                                  widget.objective.copyWith(
-                                                iconName: Value(null),
-                                                emojiIconName: Value(selection),
-                                              );
-                                              await database
-                                                  .createOrUpdateObjective(
-                                                newObjective,
-                                              );
-                                              print(newObjective);
-                                            },
-                                            selectedImage:
-                                                "assets/categories/" +
-                                                    widget.objective.iconName
-                                                        .toString(),
-                                            setSelectedTitle: (String?
-                                                titleRecommendation) {},
-                                          ),
-                                        ),
-                                        showScrollbar: true,
-                                      );
+                                    onLongPress: () {
+                                      openSelectIconPopup();
+                                    },
+                                    onTap: () {
+                                      openSelectIconPopup();
                                     },
                                   ),
                                   SizedBox(height: 10),
@@ -373,7 +373,6 @@ class _ObjectivePageContentState extends State<_ObjectivePageContent> {
                                                 value,
                                                 finalNumber:
                                                     percentageTowardsGoal * 100,
-                                                numberDecimals: 0,
                                                 useLessThanZero: true,
                                               ),
                                               fontSize: 28,
@@ -458,23 +457,14 @@ class _ObjectivePageContentState extends State<_ObjectivePageContent> {
                                                                 .only(
                                                                 bottom: 1),
                                                         child: TextFont(
-                                                          text: (isShowingAmountRemaining(
-                                                                      showTotalSpent:
-                                                                          showTotalSpent,
-                                                                      objectiveAmount:
-                                                                          objectiveAmount,
-                                                                      totalAmount:
-                                                                          totalAmount)
-                                                                  ? " " +
-                                                                      "remaining"
-                                                                          .tr()
-                                                                  : "") +
-                                                              " / " +
-                                                              convertToMoney(
-                                                                  Provider.of<
-                                                                          AllWallets>(
-                                                                      context),
-                                                                  objectiveAmount),
+                                                          text:
+                                                              objectiveRemainingAmountText(
+                                                            objectiveAmount:
+                                                                objectiveAmount,
+                                                            totalAmount:
+                                                                totalAmount,
+                                                            context: context,
+                                                          ),
                                                           fontSize: 13,
                                                           textColor: getColor(
                                                                   context,
@@ -562,6 +552,7 @@ class _ObjectivePageContentState extends State<_ObjectivePageContent> {
                                           widget.objective,
                                           totalAmount,
                                           percentageTowardsGoal,
+                                          objectiveAmount,
                                           addSpendingSavingIndication: true,
                                         ),
                                         maxLines: 3,
@@ -659,24 +650,45 @@ class _ObjectivePageContentState extends State<_ObjectivePageContent> {
             pageID: pageId,
             colorScheme: objectiveColorScheme,
           ),
-          Align(
-            alignment: Alignment.topCenter,
-            child: ConfettiWidget(
-              shouldLoop: true,
-              confettiController: confettiController,
-              gravity: 0.2,
-              blastDirectionality: BlastDirectionality.explosive,
-              maximumSize: Size(15, 15),
-              minimumSize: Size(10, 10),
-              numberOfParticles: 15,
-              canvas: Size(
-                MediaQuery.sizeOf(context).width,
-                MediaQuery.sizeOf(context).height,
+          IgnorePointer(
+            child: Align(
+              alignment: Alignment.topCenter,
+              child: ConfettiWidget(
+                shouldLoop: true,
+                confettiController: confettiController,
+                gravity: 0.2,
+                blastDirectionality: BlastDirectionality.explosive,
+                maximumSize: Size(15, 15),
+                minimumSize: Size(10, 10),
+                numberOfParticles: 15,
+                canvas: Size.infinite,
               ),
             ),
-          )
+          ),
         ],
       ),
     );
   }
+}
+
+String objectiveRemainingAmountText({
+  required double objectiveAmount,
+  required double totalAmount,
+  required BuildContext context,
+}) {
+  String result = '';
+
+  if (appStateSettings["showTotalSpentForObjective"] == false) {
+    if (totalAmount > objectiveAmount) {
+      result = " " + "over".tr() + " ";
+    } else {
+      result = " " + "remaining".tr() + " / ";
+    }
+  } else {
+    result = " / ";
+  }
+
+  result += convertToMoney(Provider.of<AllWallets>(context), objectiveAmount);
+
+  return result;
 }

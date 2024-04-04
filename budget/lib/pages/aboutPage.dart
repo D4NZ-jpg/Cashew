@@ -20,6 +20,7 @@ import 'package:budget/widgets/showChangelog.dart';
 import 'package:budget/widgets/tappable.dart';
 import 'package:budget/widgets/textWidgets.dart';
 import 'package:easy_localization/easy_localization.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:budget/colors.dart';
 
@@ -48,6 +49,11 @@ class AboutPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    Color containerColor = appStateSettings["materialYou"]
+        ? dynamicPastel(
+            context, Theme.of(context).colorScheme.secondaryContainer,
+            amountLight: 0.2, amountDark: 0.6)
+        : getColor(context, "lightDarkAccent");
     return PageFramework(
       dragDownToDismiss: true,
       title: "about".tr(),
@@ -71,7 +77,7 @@ class AboutPage extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.start,
                 children: [
                   Tappable(
-                    borderRadius: 15,
+                    borderRadius: getPlatform() == PlatformOS.isIOS ? 10 : 15,
                     onLongPress: () {
                       if (allowDebugFlags)
                         pushRoute(
@@ -119,12 +125,8 @@ class AboutPage extends StatelessWidget {
             onTap: () {
               openUrl("https://github.com/jameskokoska/Cashew");
             },
-            color: appStateSettings["materialYou"]
-                ? dynamicPastel(
-                    context, Theme.of(context).colorScheme.secondaryContainer,
-                    amountLight: 0.2, amountDark: 0.6)
-                : getColor(context, "lightDarkAccent"),
-            borderRadius: 15,
+            color: containerColor,
+            borderRadius: getPlatform() == PlatformOS.isIOS ? 10 : 15,
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 15),
               child: Column(
@@ -211,12 +213,8 @@ class AboutPage extends StatelessWidget {
             onLongPress: () {
               copyToClipboard("dapperappdeveloper@gmail.com");
             },
-            color: appStateSettings["materialYou"]
-                ? dynamicPastel(
-                    context, Theme.of(context).colorScheme.secondaryContainer,
-                    amountLight: 0.2, amountDark: 0.6)
-                : getColor(context, "lightDarkAccent"),
-            borderRadius: 15,
+            color: containerColor,
+            borderRadius: getPlatform() == PlatformOS.isIOS ? 10 : 15,
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 15),
               child: Column(
@@ -252,12 +250,8 @@ class AboutPage extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 5),
           child: Tappable(
             onTap: () {},
-            color: appStateSettings["materialYou"]
-                ? dynamicPastel(
-                    context, Theme.of(context).colorScheme.secondaryContainer,
-                    amountLight: 0.2, amountDark: 0.6)
-                : getColor(context, "lightDarkAccent"),
-            borderRadius: 15,
+            color: containerColor,
+            borderRadius: getPlatform() == PlatformOS.isIOS ? 10 : 15,
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 15),
               child: Column(
@@ -282,17 +276,20 @@ class AboutPage extends StatelessWidget {
             ),
           ),
         ),
-        SizedBox(height: 15),
-        Row(
-          children: [
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 15),
-                child: Button(
-                  label: "view-licenses-and-legalese".tr(),
-                  color: Theme.of(context).colorScheme.tertiary,
-                  textColor: Theme.of(context).colorScheme.onTertiary,
+        SizedBox(height: 20),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 15),
+          child: OutlinedContainer(
+            borderColor:
+                Theme.of(context).colorScheme.tertiary.withOpacity(0.6),
+            clip: true,
+            child: Column(
+              children: [
+                TappableOpacityButton(
                   expandedLayout: true,
+                  label: "view-licenses-and-legalese".tr(),
+                  color: containerColor,
+                  textColor: Theme.of(context).colorScheme.tertiary,
                   onTap: () {
                     showLicensePage(
                         context: context,
@@ -303,122 +300,120 @@ class AboutPage extends StatelessWidget {
                                 "exchange-rate-notice-description".tr());
                   },
                 ),
-              ),
-            )
-          ],
-        ),
-        SizedBox(height: 10),
-        Row(
-          children: [
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 15),
-                child: Button(
-                  label: "privacy-policy".tr(),
-                  color: Theme.of(context).colorScheme.tertiary,
-                  textColor: Theme.of(context).colorScheme.onTertiary,
+                TappableOpacityButtonBreak(
+                    color: Theme.of(context)
+                        .colorScheme
+                        .tertiary
+                        .withOpacity(0.6)),
+                TappableOpacityButton(
                   expandedLayout: true,
+                  label: "privacy-policy".tr(),
+                  color: containerColor,
+                  textColor: Theme.of(context).colorScheme.tertiary,
                   onTap: () {
                     openUrl("http://cashewapp.web.app/policy.html");
                   },
                 ),
-              ),
-            )
-          ],
-        ),
-        SizedBox(height: 10),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 15),
-          child: Button(
-            label: "delete-all-data".tr(),
-            onTap: () {
-              openPopup(
-                context,
-                title: "erase-everything".tr(),
-                description: "erase-everything-description".tr(),
-                icon: appStateSettings["outlinedIcons"]
-                    ? Icons.warning_outlined
-                    : Icons.warning_rounded,
-                onExtraLabel2: "erase-synced-data-and-cloud-backups".tr(),
-                onExtra2: () {
-                  Navigator.pop(context);
-                  openBottomSheet(
-                    context,
-                    PopupFramework(
-                      title: "erase-cloud-data".tr(),
-                      child: Column(
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.only(
-                              bottom: 18,
-                              left: 5,
-                              right: 5,
-                            ),
-                            child: TextFont(
-                              text: "erase-cloud-data-description".tr(),
-                              fontSize: 18,
-                              textAlign: TextAlign.center,
-                              maxLines: 10,
+                TappableOpacityButtonBreak(
+                    color: Theme.of(context)
+                        .colorScheme
+                        .tertiary
+                        .withOpacity(0.6)),
+                TappableOpacityButton(
+                  expandedLayout: true,
+                  label: "delete-all-data".tr(),
+                  color: Theme.of(context).colorScheme.error.withOpacity(0.3),
+                  textColor: Theme.of(context).colorScheme.error,
+                  onTap: () {
+                    openPopup(
+                      context,
+                      title: "erase-everything".tr(),
+                      description: "erase-everything-description".tr(),
+                      icon: appStateSettings["outlinedIcons"]
+                          ? Icons.warning_outlined
+                          : Icons.warning_rounded,
+                      onExtraLabel2: "erase-synced-data-and-cloud-backups".tr(),
+                      onExtra2: () {
+                        Navigator.pop(context);
+                        openBottomSheet(
+                          context,
+                          PopupFramework(
+                            title: "erase-cloud-data".tr(),
+                            child: Column(
+                              children: [
+                                Padding(
+                                  padding: const EdgeInsets.only(
+                                    bottom: 18,
+                                    left: 5,
+                                    right: 5,
+                                  ),
+                                  child: TextFont(
+                                    text: "erase-cloud-data-description".tr(),
+                                    fontSize: 18,
+                                    textAlign: TextAlign.center,
+                                    maxLines: 10,
+                                  ),
+                                ),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: SyncCloudBackupButton(
+                                        onTap: () async {
+                                          Navigator.pop(context);
+                                          pushRoute(context, AccountsPage());
+                                        },
+                                      ),
+                                    ),
+                                    SizedBox(width: 18),
+                                    Expanded(
+                                      child: BackupsCloudBackupButton(
+                                        onTap: () async {
+                                          Navigator.pop(context);
+                                          pushRoute(context, AccountsPage());
+                                        },
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
                             ),
                           ),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: SyncCloudBackupButton(
-                                  onTap: () async {
-                                    Navigator.pop(context);
-                                    pushRoute(context, AccountsPage());
-                                  },
-                                ),
-                              ),
-                              SizedBox(width: 18),
-                              Expanded(
-                                child: BackupsCloudBackupButton(
-                                  onTap: () async {
-                                    Navigator.pop(context);
-                                    pushRoute(context, AccountsPage());
-                                  },
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                },
-                onSubmit: () async {
-                  Navigator.pop(context);
-                  openPopup(
-                    context,
-                    title: "erase-everything-warning".tr(),
-                    description: "erase-everything-warning-description".tr(),
-                    icon: appStateSettings["outlinedIcons"]
-                        ? Icons.warning_amber_outlined
-                        : Icons.warning_amber_rounded,
-                    onSubmit: () async {
-                      Navigator.pop(context);
-                      clearDatabase(context);
-                    },
-                    onSubmitLabel: "erase".tr(),
-                    onCancelLabel: "cancel".tr(),
-                    onCancel: () {
-                      Navigator.pop(context);
-                    },
-                  );
-                },
-                onSubmitLabel: "erase".tr(),
-                onCancelLabel: "cancel".tr(),
-                onCancel: () {
-                  Navigator.pop(context);
-                },
-              );
-            },
-            color: Theme.of(context).colorScheme.error,
-            textColor: Theme.of(context).colorScheme.onError,
+                        );
+                      },
+                      onSubmit: () async {
+                        Navigator.pop(context);
+                        openPopup(
+                          context,
+                          title: "erase-everything-warning".tr(),
+                          description:
+                              "erase-everything-warning-description".tr(),
+                          icon: appStateSettings["outlinedIcons"]
+                              ? Icons.warning_amber_outlined
+                              : Icons.warning_amber_rounded,
+                          onSubmit: () async {
+                            Navigator.pop(context);
+                            clearDatabase(context);
+                          },
+                          onSubmitLabel: "erase".tr(),
+                          onCancelLabel: "cancel".tr(),
+                          onCancel: () {
+                            Navigator.pop(context);
+                          },
+                        );
+                      },
+                      onSubmitLabel: "erase".tr(),
+                      onCancelLabel: "cancel".tr(),
+                      onCancel: () {
+                        Navigator.pop(context);
+                      },
+                    );
+                  },
+                ),
+              ],
+            ),
           ),
         ),
-        SizedBox(height: 10),
+        SizedBox(height: 15),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 7),
           child: Center(
@@ -430,7 +425,41 @@ class AboutPage extends StatelessWidget {
             ),
           ),
         ),
-        SizedBox(height: 20),
+        SizedBox(height: 10),
+        if (getPlatform(ignoreEmulation: true) == PlatformOS.isAndroid ||
+            kIsWeb)
+          Padding(
+            padding: const EdgeInsets.only(top: 10, bottom: 10),
+            child: HorizontalBreakAbove(
+                child: Column(
+              children: [
+                SizedBox(height: 10),
+                Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 15, vertical: 7),
+                  child: Center(
+                    child: TextFont(
+                      text: "advanced-automation".tr(),
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      textAlign: TextAlign.center,
+                      maxLines: 5,
+                    ),
+                  ),
+                ),
+                AboutInfoBox(
+                  title: "deep-linking".tr(),
+                  showLink: false,
+                  link:
+                      "https://github.com/jameskokoska/Cashew?tab=readme-ov-file#app-links",
+                  list: [
+                    "deep-linking-description".tr(),
+                  ],
+                ),
+              ],
+            )),
+          ),
+        SizedBox(height: 10),
         HorizontalBreak(),
         SizedBox(height: 10),
         Padding(
@@ -488,7 +517,7 @@ class AboutPage extends StatelessWidget {
         ),
         AboutInfoBox(
           title: "exchange-rates-api".tr(),
-          link: "https://github.com/fawazahmed0/currency-api",
+          link: "https://github.com/fawazahmed0/exchange-api",
         ),
         Container(height: 15),
         Padding(
@@ -507,11 +536,7 @@ class AboutPage extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 5),
           child: TranslationsHelp(
             showIcon: false,
-            backgroundColor: (appStateSettings["materialYou"]
-                ? dynamicPastel(
-                    context, Theme.of(context).colorScheme.secondaryContainer,
-                    amountLight: 0.2, amountDark: 0.6)
-                : getColor(context, "lightDarkAccent")),
+            backgroundColor: containerColor,
           ),
         ),
         AboutInfoBox(
@@ -532,7 +557,7 @@ class AboutPage extends StatelessWidget {
         ),
         AboutInfoBox(
           title: "German",
-          list: ["Fabian S."],
+          list: ["Fabian S.", "Christian R."],
         ),
         AboutInfoBox(
           title: "Arabic",
@@ -540,7 +565,7 @@ class AboutPage extends StatelessWidget {
         ),
         AboutInfoBox(
           title: "Portuguese",
-          list: ["Alexander G.", "Jean J.", "João P.", "Junior M."],
+          list: ["Alexander G.", "Jean J.", "João P.", "Junior M.", "Leandro"],
         ),
         AboutInfoBox(
           title: "Bulgarian",
@@ -564,7 +589,7 @@ class AboutPage extends StatelessWidget {
         ),
         AboutInfoBox(
           title: "French",
-          list: ["Antoine C."],
+          list: ["Antoine C.", "Fabien H."],
         ),
         AboutInfoBox(
           title: "Indonesian",
@@ -594,6 +619,14 @@ class AboutPage extends StatelessWidget {
           title: "Danish",
           list: ["Mittheo"],
         ),
+        AboutInfoBox(
+          title: "Turkish",
+          list: ["Serdar A."],
+        ),
+        AboutInfoBox(
+          title: "Slovak",
+          list: ["Igor V."],
+        ),
         SizedBox(height: 20),
       ],
     );
@@ -617,6 +650,7 @@ class AboutInfoBox extends StatelessWidget {
     this.list,
     this.color,
     this.padding,
+    this.showLink = true,
   }) : super(key: key);
 
   final String title;
@@ -624,6 +658,7 @@ class AboutInfoBox extends StatelessWidget {
   final List<String>? list;
   final Color? color;
   final EdgeInsets? padding;
+  final bool showLink;
 
   @override
   Widget build(BuildContext context) {
@@ -643,7 +678,7 @@ class AboutInfoBox extends StatelessWidget {
                     context, Theme.of(context).colorScheme.secondaryContainer,
                     amountLight: 0.2, amountDark: 0.6)
                 : getColor(context, "lightDarkAccent")),
-        borderRadius: 15,
+        borderRadius: getPlatform() == PlatformOS.isIOS ? 10 : 15,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 15),
           child: Column(
@@ -656,12 +691,13 @@ class AboutInfoBox extends StatelessWidget {
                 maxLines: 5,
               ),
               SizedBox(height: 6),
-              if (link != null)
+              if (link != null && showLink)
                 TextFont(
                   text: link ?? "",
                   fontSize: 14,
                   textAlign: TextAlign.center,
                   textColor: getColor(context, "textLight"),
+                  maxLines: 1,
                 ),
               for (String item in list ?? [])
                 TextFont(
@@ -669,6 +705,7 @@ class AboutInfoBox extends StatelessWidget {
                   fontSize: 14,
                   textAlign: TextAlign.center,
                   textColor: getColor(context, "textLight"),
+                  maxLines: 10,
                 ),
             ],
           ),
